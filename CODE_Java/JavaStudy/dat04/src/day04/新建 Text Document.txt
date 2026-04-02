@@ -1,0 +1,27 @@
+public class ConsoleCheck {
+    
+    public static boolean isRealWindowsConsole() {
+        // 检查是否在真正的Windows控制台中
+        String os = System.getProperty("os.name");
+        String term = System.getenv("TERM");
+        
+        return os.toLowerCase().contains("win") && 
+               (term == null || term.isEmpty()) &&
+               System.console() != null;
+    }
+    
+    public static void clearIfPossible() {
+        if (isRealWindowsConsole()) {
+            try {
+                new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
+                System.out.println("✓ 清屏成功（Windows控制台）");
+            } catch (Exception e) {
+                System.out.println("✗ 清屏失败");
+            }
+        } else {
+            System.out.println("⚠ 不是在真正的Windows控制台中");
+            System.out.println("请在CMD中运行: java -jar 你的程序.jar");
+            System.out.print("\n".repeat(5));  // 模拟清屏
+        }
+    }
+}
