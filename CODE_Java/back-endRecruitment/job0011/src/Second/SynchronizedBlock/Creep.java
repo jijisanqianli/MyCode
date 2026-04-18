@@ -2,7 +2,7 @@ package Second.SynchronizedBlock;
 
 public class Creep implements Runnable{
     static int player=100;
-    static Object lock=new Object();
+    static final Object lock=new Object();
     @Override
     public void run() {
         synchronized (lock){
