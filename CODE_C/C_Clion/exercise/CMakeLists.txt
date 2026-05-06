@@ -67,6 +67,16 @@ target_include_directories(queue_exercise_test PRIVATE modules/queue_exercise)
 # 强制指定C语言
 set_target_properties(queue_exercise_test PROPERTIES LINKER_LANGUAGE C)
 
+add_executable(tree_exercise_test
+        modules/tree_exercise/tree_exercise_test.c
+        modules/tree_exercise/stack_example.c
+        modules/tree_exercise/pre_order.c
+        modules/tree_exercise/path.c
+)
+# 告诉编译器头文件路径（找到seqlist.h）
+target_include_directories(tree_exercise_test PRIVATE modules/tree_exercise)
+# 强制指定C语言
+set_target_properties(tree_exercise_test PROPERTIES LINKER_LANGUAGE C)
 
 # 后续加其他模块（比如链表），复制下面模板即可：
 # add_executable(test_linklist
