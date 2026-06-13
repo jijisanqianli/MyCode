@@ -55,3 +55,5 @@ env/
 # ==========================================
 .DS_Store
 Thumbs.db
+# 独立仓库，各管各的
+CODE_Java/sky-take-out/
