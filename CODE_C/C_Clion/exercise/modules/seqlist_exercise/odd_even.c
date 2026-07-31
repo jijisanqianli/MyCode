@@ -5,7 +5,6 @@
 //我自己的做法
 void odd_even(SeqList *L) {
     int left=L->last;
-    int end=0;
     for (int i=0;i<=L->last;i++) {
         if (L->elem[i]%2==0) {
             if (left<=i) {

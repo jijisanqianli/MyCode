@@ -78,6 +78,18 @@ target_include_directories(tree_exercise_test PRIVATE modules/tree_exercise)
 # 强制指定C语言
 set_target_properties(tree_exercise_test PROPERTIES LINKER_LANGUAGE C)
 
+#五：sort_exercise —— 败者树多路归并
+add_executable(merge_arrays
+        modules/sort_exercise/merge_arrays.c
+)
+set_target_properties(merge_arrays PROPERTIES LINKER_LANGUAGE C)
+
+# 独立的败者树演示（含详细追踪输出）
+add_executable(loser_tree_demo
+        modules/sort_exercise/loser_tree.c
+)
+set_target_properties(loser_tree_demo PROPERTIES LINKER_LANGUAGE C)
+
 # 后续加其他模块（比如链表），复制下面模板即可：
 # add_executable(test_linklist
 #     modules/linklist/test_linklist.c
