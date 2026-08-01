@@ -372,6 +372,7 @@ build_src_filter =
 | `server.arg()` 编译报错"函数缺少 const 限定符" | 所用 WebServer 库的 `arg()` 不是 const 方法 | 去掉封装函数的 const 限定 |
 | `?channel=abc` 被当成通道 0 | `String::toInt()` 对非数字静默返回 0 | 逐字符 `isdigit` 校验后再转换 |
 | 页面报 404 File Not Found | 代码里没有调用 `LittleFS.begin()`，文件系统未挂载，很烦人 | 在 `setup()` 中先调用 `LittleFS.begin(true)`（挂载失败自动格式化） |
+| 请求页面/灌溉时设备反复崩溃重启，点击有概率失败 | 电脑 USB 口供电不足，WiFi 发射瞬间电流大导致电压跌落，协议栈 panic | 使用独立 5V 电源供电；已实测独立供电稳定 |
 
 ### 今日总结
 

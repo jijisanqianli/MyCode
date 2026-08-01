@@ -1,4 +1,4 @@
-# 嵌入式系统暑期招新任务
+# 嵌入式系统暑期招新任务（阶段一、二）
 
 基于 **ESP32-S3 + PlatformIO** 的智能灌溉控制系统(多通道),为暑期招新任务项目文件夹。
 
@@ -15,12 +15,11 @@
 ├── lib/            # 库说明
 ├── platformio.ini  # PlatformIO 配置
 └── README.md
-```
 
-## 使用
+## 📖 学习日志
 
-```powershell
-pio run -t upload -t uploadfs -e app-main   # 编译并烧录固件 + 文件系统
-```
+学习过程记录位于 [docs/learning-log.md](docs/learning-log.md)(Day 1 ~ Day 3)。
 
-详情见 [docs/api.md](docs/api.md)。
+## 🔗 GitHub
+
+- 项目链接:<https://github.com/jijisanqianli/MyCode/tree/main/CODE_Cpp/embedded-system-summer-recruitment>
