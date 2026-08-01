@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>ESP32 智能灌溉</title>
+
+
+    <style>
+
+        *{
+            box-sizing:border-box;
+            font-family:
+                    Arial,
+                    "Microsoft YaHei",
+                    sans-serif;
+        }
+
+
+        body{
+
+            margin:0;
+            min-height:100vh;
+
+            display:flex;
+            justify-content:center;
+            align-items:center;
+
+            background:
+                    linear-gradient(
+                            135deg,
+                            #d9f99d,
+                            #86efac
+                    );
+
+        }
+
+
+        .card{
+
+            width:95%;
+            max-width:960px;
+
+            background:white;
+
+            padding:30px;
+
+            border-radius:20px;
+
+            text-align:center;
+
+            box-shadow:
+                    0 10px 30px rgba(0,0,0,.15);
+
+        }
+
+
+
+        h1{
+
+            margin-top:0;
+
+            color:#166534;
+
+        }
+
+
+
+        .icon{
+
+            font-size:60px;
+
+            margin:15px;
+
+        }
+
+
+        /* 通道容器:横向排列,窄屏自动换行 */
+        #channels{
+
+            display:flex;
+            flex-wrap:wrap;
+            justify-content:center;
+            gap:14px;
+
+        }
+
+
+        /* 每个通道的控制区块 */
+        .channel{
+
+            flex:1 1 260px;
+            max-width:320px;
+
+            border:1px solid #e5e7eb;
+
+            border-radius:12px;
+
+            padding:16px;
+
+            text-align:center;
+
+        }
+
+
+
+        .channel-title{
+
+            font-size:16px;
+
+            font-weight:bold;
+
+            color:#166534;
+
+            margin-bottom:10px;
+
+        }
+
+
+
+        .pin{
+
+            font-size:12px;
+
+            font-weight:normal;
+
+            color:#666;
+
+        }
+
+
+
+        .status{
+
+            margin:12px 0;
+
+            padding:12px;
+
+            border-radius:12px;
+
+            font-size:18px;
+
+        }
+
+
+
+        .running{
+
+            color:#16a34a;
+
+            background:#dcfce7;
+
+        }
+
+
+
+        .stopped{
+
+            color:#dc2626;
+
+            background:#fee2e2;
+
+        }
+
+
+
+        button{
+
+            width:100%;
+
+            padding:14px;
+
+            margin:8px 0;
+
+            border:none;
+
+            border-radius:12px;
+
+            font-size:18px;
+
+            color:white;
+
+            cursor:pointer;
+
+        }
+
+
+
+        .on{
+
+            background:#22c55e;
+
+        }
+
+
+
+        .off{
+
+            background:#ef4444;
+
+        }
+
+
+
+        .check{
+
+            background:#3b82f6;
+
+        }
+
+
+
+        button:active{
+
+            transform:scale(.97);
+
+        }
+
+
+
+        .info{
+
+            margin-top:15px;
+
+            font-size:13px;
+
+            color:#666;
+
+        }
+
+
+
+    </style>
+
+</head>
+
+
+
+<body>
+
+
+<div class="card">
+
+
+    <h1>
+        🌱 智能灌溉
+    </h1>
+
+    <div class="icon">
+        💧
+    </div>
+
+
+    <!-- 通道列表由 JS 按 /irrigation/channels 返回的数据动态生成 -->
+    <div id="channels"></div>
+
+
+    <div class="info">
+        ESP32 Irrigation Controller
+    </div>
+
+
+</div>
+
+
+
+<script>
+
+
+    // 缓存通道列表,每个通道的 index 即后端通道索引
+    let channels = [];
+
+
+    // 初始化:加载通道列表,渲染界面并同步一次状态
+    async function loadChannels(){
+
+        let container = document.getElementById("channels");
+
+        try{
+
+            let response = await fetch("/irrigation/channels");
+
+            if(!response.ok){
+                throw new Error("bad status");
+            }
+
+            channels = await response.json();
+            renderChannels();
+            updateStatus();
+
+        }catch(e){
+
+            container.innerHTML =
+                '<div class="status stopped">无法连接 ESP32</div>';
+
+        }
+
+    }
+
+
+    // 按通道列表动态生成每个通道的 状态框 + 按钮组
+    function renderChannels(){
+
+        let container = document.getElementById("channels");
+        container.innerHTML = "";
+
+        channels.forEach((ch, i) => {
+
+            let name = ch.name ? ch.name : ("通道 " + ch.index);
+
+            let div = document.createElement("div");
+            div.className = "channel";
+
+            div.innerHTML =
+                '<div class="channel-title">' + name +
+                ' <span class="pin">GPIO ' + ch.gpioPin + '</span></div>' +
+
+                '<div class="status stopped" id="status-' + i + '">状态未知</div>' +
+
+                '<button class="on" onclick="control(' + i + ', true)">开启灌溉</button>' +
+                '<button class="off" onclick="control(' + i + ', false)">停止灌溉</button>' +
+                '<button class="check" onclick="queryStatus(' + i + ')">查询状态</button>';
+
+            container.appendChild(div);
+
+        });
+
+    }
+
+
+    // 控制指定通道的开启/停止
+    async function control(index, enable){
+
+        let url =
+            (enable ? "/irrigation/on?channel=" : "/irrigation/off?channel=")
+            + index;
+
+        try{
+
+            let response = await fetch(url, {method:"POST"});
+            let text = await response.text();
+
+            alert(text);
+
+            // 操作后自动刷新状态
+            updateStatus();
+
+        }catch(e){
+
+            alert("连接 ESP32 失败");
+
+        }
+
+    }
+
+
+    // 批量刷新所有通道状态(自动更新用)
+    async function updateStatus(){
+
+        try{
+
+            let response = await fetch("/irrigation/status");
+
+            if(!response.ok)
+                return;
+
+            let data = await response.json();   // 后端返回数组,按通道 index 顺序排列
+
+            data.forEach((item, i) => {
+                showStatus(i, item.status);
+            });
+
+        }catch(e){
+
+            console.log("状态查询失败");
+
+        }
+
+    }
+
+
+    // 更新单个通道的状态显示
+    function showStatus(index, status){
+
+        let box = document.getElementById("status-" + index);
+        if(!box) return;
+
+        if(status){
+            box.innerHTML = "💧 灌溉运行中";
+            box.className = "status running";
+        }else{
+            box.innerHTML = "⛔ 灌溉已停止";
+            box.className = "status stopped";
+        }
+
+    }
+
+
+    // 手动查询单个通道状态,弹窗显示 GPIO + 状态
+    async function queryStatus(index){
+
+        try{
+
+            let response = await fetch("/irrigation/status?channel=" + index);
+
+            if(!response.ok){
+                alert("状态查询失败");
+                return;
+            }
+
+            let data = await response.json();
+
+            let state = data.status ? "运行中" : "已停止";
+
+            alert(
+                "GPIO引脚: " + data.gpioPin +
+                "\n\n当前状态: " + state
+            );
+
+            // 同时刷新页面状态
+            showStatus(index, data.status);
+
+        }catch(e){
+
+            alert("无法连接 ESP32");
+
+        }
+
+    }
+
+
+    // 打开页面自动加载通道并同步一次状态
+    loadChannels();
+
+
+</script>
+
+
+</body>
+
+</html>
