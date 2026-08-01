@@ -15,6 +15,7 @@
 ├── lib/            # 库说明
 ├── platformio.ini  # PlatformIO 配置
 └── README.md
+```
 
 ## 📖 学习日志
 
