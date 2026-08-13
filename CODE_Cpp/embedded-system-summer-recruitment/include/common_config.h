@@ -2,8 +2,6 @@
 #define COMMON_CONFIG_H
 
 #include <Arduino.h>
-#include "IrrigationService.h"
-#include "WebServerController.h"
 #include "wifi_app.h"
 
 // 全局波特率定义

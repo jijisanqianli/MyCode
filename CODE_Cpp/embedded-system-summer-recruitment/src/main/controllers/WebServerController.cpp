@@ -1,9 +1,13 @@
+// 框架库在 src 显式 include, 让 LDF 能检测到依赖
+// (头文件在 include/ 子目录时 LDF 不会继续追踪其中的框架库 include)
+#include <WebServer.h>
+#include <LittleFS.h>
 #include "WebServerController.h"
 #include "IrrigationService.h"
 #include <ctype.h>
 
-WebServerController::WebServerController(uint16_t port, IrrigationService& service):
-    server(port), irrigationService(service){}
+WebServerController::WebServerController(uint16_t port, IrrigationService& service, SensorService& sensors):
+    server(port), irrigationService(service), sensorService(sensors){}
 
 void WebServerController::setupRoutes() {
     // 获取主页
@@ -15,6 +19,11 @@ void WebServerController::setupRoutes() {
         }
         server.streamFile(file, "text/html");
         file.close();
+    });
+
+    // 获取传感器数据(温度/湿度/土壤), 数据由 SensorService 周期采样缓存
+    server.on("/api/sensors", HTTP_GET, [this]() {
+        server.send(200, "application/json", sensorService.getSensorsJson());
     });
 
     // 获取通道列表

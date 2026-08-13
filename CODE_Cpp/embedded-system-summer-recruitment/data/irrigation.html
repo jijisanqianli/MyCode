@@ -78,6 +78,47 @@
         }
 
 
+
+        /* 传感器数据卡片 */
+        .sensors{
+
+            display:flex;
+            justify-content:center;
+            gap:14px;
+            flex-wrap:wrap;
+            margin:10px 0 25px;
+
+        }
+
+
+
+        .sensor-item{
+
+            flex:1 1 120px;
+            max-width:200px;
+
+            background:#f0fdf4;
+            border:1px solid #bbf7d0;
+            border-radius:12px;
+            padding:12px;
+
+            font-size:15px;
+            color:#166534;
+
+        }
+
+
+
+        .sensor-item span{
+
+            display:block;
+            font-size:26px;
+            font-weight:bold;
+            margin-top:4px;
+
+        }
+
+
         /* 通道容器:横向排列,窄屏自动换行 */
         #channels{
 
@@ -251,6 +292,14 @@
 
     <div class="icon">
         💧
+    </div>
+
+
+    <!-- 传感器数据卡片: 由 JS 每 2s 轮询 /api/sensors 更新 -->
+    <div class="sensors">
+        <div class="sensor-item">🌡️ 温度<span id="temp">--</span></div>
+        <div class="sensor-item">💧 湿度<span id="hum">--</span></div>
+        <div class="sensor-item">🪴 土壤<span id="soil">--</span></div>
     </div>
 
 
@@ -434,6 +483,39 @@
 
     // 打开页面自动加载通道并同步一次状态
     loadChannels();
+
+
+    // 轮询传感器数据(/api/sensors), 每 2s 刷新卡片
+    async function updateSensors(){
+
+        try{
+
+            let response = await fetch("/api/sensors");
+
+            if(!response.ok)
+                return;
+
+            let data = await response.json();
+
+            document.getElementById("temp").textContent =
+                (data.temperature != null) ? data.temperature.toFixed(1) : "--";
+
+            document.getElementById("hum").textContent =
+                (data.humidity != null) ? data.humidity.toFixed(1) : "--";
+
+            document.getElementById("soil").textContent =
+                (data.soil != null) ? data.soil : "--";
+
+        }catch(e){
+
+            console.log("传感器查询失败");
+
+        }
+
+    }
+
+    updateSensors();
+    setInterval(updateSensors, 2000);
 
 
 </script>

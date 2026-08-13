@@ -1,19 +1,21 @@
 #ifndef EMBEDDED_SYSTEM_SUMMER_RECRUITMENT_WEB_SERVER_H
 #define EMBEDDED_SYSTEM_SUMMER_RECRUITMENT_WEB_SERVER_H
 
-#include "WebServer.h"
+#include <WebServer.h>
 #include "IrrigationService.h"
-#include "LittleFS.h"
+#include "SensorService.h"
+#include <LittleFS.h>
 
 class WebServerController {
     WebServer server;
     IrrigationService& irrigationService;
+    SensorService& sensorService;
 
     void setupRoutes();
     int parseChannelIndex();   // 解析 channel 参数,参数缺失或非法返回 -1
 
 public:
-    WebServerController(uint16_t port, IrrigationService& service);
+    WebServerController(uint16_t port, IrrigationService& service, SensorService& sensors);
     void begin();
     void handleClient();
 };

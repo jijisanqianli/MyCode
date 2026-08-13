@@ -5,15 +5,25 @@
 ## 📁 文件夹结构
 
 ```
-├── include/        # 头文件(声明)
+├── include/
+│   ├── drivers/      # Driver 头文件(硬件驱动: 灌溉/传感器/OLED)
+│   ├── services/     # Service 头文件(业务/状态/JSON)
+│   ├── controllers/  # Controller 头文件(Web API)
+│   ├── common_config.h
+│   └── wifi_app.h
 ├── src/
-│   ├── main/       # 正式程序(智能灌溉系统)
-│   └── lab/        # 练习/测试代码
-├── data/           # 文件系统内容(Web 控制页面 HTML)
-├── docs/           # API 文档、学习日志
-├── test/           # 测试
-├── lib/            # 库说明
-├── platformio.ini  # PlatformIO 配置
+│   ├── main/         # 正式程序(智能灌溉系统)
+│   │   ├── drivers/
+│   │   ├── services/
+│   │   ├── controllers/
+│   │   ├── main.cpp
+│   │   └── wifi_app.cpp
+│   └── lab/          # 练习/测试代码
+├── data/             # 文件系统内容(Web 控制页面 HTML)
+├── docs/             # API 文档、学习日志
+├── test/             # 测试
+├── lib/              # 库说明
+├── platformio.ini    # PlatformIO 配置
 └── README.md
 ```
 

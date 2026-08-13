@@ -163,3 +163,38 @@
 | `200 OK`       | `application/json` | 返回指定通道的状态 JSON 对象   |
 | `400 Bad Request` | `text/plain`    | `Missing or invalid channel parameter` |
 | `404 Not Found` | `text/plain`      | `Channel not found`            |
+
+## 4. 传感器数据 API
+
+### 4.1 获取传感器数据
+
+返回当前环境传感器数据（温度、湿度、土壤湿度）。数据由 `SensorService` 每 2s 周期采样并缓存，查询实时返回缓存值。
+
+- **请求路径**：`/api/sensors`
+- **HTTP 方法**：`GET`
+- **请求参数**：无
+- **响应格式**：`application/json`
+
+#### 响应示例
+
+```json
+{"temperature":28.9,"humidity":64.4,"soil":2}
+```
+
+#### 字段说明
+
+| **字段**        | **类型**     | **说明**                                   |
+| --------------- | ------------ | ------------------------------------------ |
+| `temperature`   | `number`/`null` | 温度（°C），传感器读取失败时为 `null`    |
+| `humidity`      | `number`/`null` | 相对湿度（%），传感器读取失败时为 `null` |
+| `soil`          | `number`/`null` | 土壤湿度（0~100%），尚未采样时为 `null`  |
+
+#### 响应说明
+
+| **状态码** | **类型**           | **说明**                     |
+| ---------- | ------------------ | ---------------------------- |
+| `200 OK`   | `application/json` | 返回传感器数据 JSON 对象     |
+
+#### 前端使用
+
+页面 `data/irrigation.html` 每 2s 轮询该接口刷新顶部传感器卡片（温度/湿度/土壤）。
