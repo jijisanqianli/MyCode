@@ -22,13 +22,13 @@ void MqttService::begin() {
 void MqttService::update() {
     uint32_t now = millis();
 
-    // ① 连接管理: 未连接时定时重试(节流, 不阻塞主循环)
+    // ① 连接管理: 未连接时定时重试(节流, 不阻塞)
     if (!mqttDriver.isConnected()) {
         if (now - lastConnectMs >= CONNECT_RETRY_MS) {
             lastConnectMs = now;
             if (mqttDriver.connect()) {
                 Serial.println("[MQTT] Broker connected");
-                mqttDriver.subscribe(topicCmd);   // 连接成功后订阅控制主题(只做一次)
+                mqttDriver.subscribe(topicCmd);   // 连接成功后订阅控制主题
             } else {
                 Serial.println("[MQTT] connect FAIL, retry later");
             }
@@ -36,20 +36,22 @@ void MqttService::update() {
         return;
     }
 
-    // ② 已连接: 保活 + 处理收到的消息(触发回调)
+    // ② 已连接: 保活 + 处理收到的消息(触发回调 → 发 manualIrrQueue)
     mqttDriver.loop();
-
-    // ③ 周期上报传感器数据
-    if (now - lastPublishMs >= PUBLISH_INTERVAL_MS) {
-        lastPublishMs = now;
-        publishData();
-    }
+    // (周期上报已改由 mqttTask 驱动, 此处不再上报)
 }
 
-void MqttService::publishData() {
-    // 在传感器 JSON 前加 device 字段: {"device":"esp32-s3","temperature":...}
-    String payload = String("{\"device\":\"") + deviceId + "\","
-                   + sensorService.getSensorsJson().substring(1);
+bool MqttService::isConnected() {
+    return mqttDriver.isConnected();
+}
+
+// 由 mqttTask 调用: 用最新一次采样的完整结构体拼 JSON(保证一致性), 含 mode 字段
+void MqttService::publishData(const SensorData_t& data) {
+    String payload = String("{\"device\":\"") + deviceId + "\""
+        + ",\"temperature\":" + String(data.temperature, 1)
+        + ",\"humidity\":" + String(data.humidity, 1)
+        + ",\"soil\":" + String(data.soilPercent)
+        + ",\"mode\":\"" + (controlMode == MODE_MANUAL ? "manual" : "auto") + "\"}";
 
     bool ok = mqttDriver.publish(topicData, payload.c_str());
     Serial.printf("[MQTT] publish %s -> %s\n", topicData, ok ? "OK" : "FAIL");
@@ -58,30 +60,41 @@ void MqttService::publishData() {
     }
 }
 
-// 收到控制指令: {"pump":"on"/"off","index":N}, index 缺省时默认通道 0
+// 收到云端指令: 解析后发 manualIrrQueue(执行权收敛到 controlTask)
+// {"pump":"on"/"off","index":N} 或 {"mode":"auto"/"manual"}
 void MqttService::onCommand(const String& topic, const String& payload) {
-    Serial.printf("[MQTT] cmd received: %s -> %s\n", topic.c_str(), payload.c_str());
+    Serial.printf("[MQTT] cmd received: %s\n", payload.c_str());
 
-    if (payload.indexOf("\"pump\"") < 0) return;   // 非 pump 指令, 忽略
+    Command_t cmd;
+    cmd.index  = 0;
+    cmd.pumpOn = false;
+    cmd.mode   = -1;   // 默认不切换模式
 
-    // 解析通道 index: 从 "index":N 中提取数字, 缺省为 0
-    size_t channelIndex = 0;
-    int indexPos = payload.indexOf("\"index\"");
-    if (indexPos >= 0) {
-        int colonPos = payload.indexOf(':', indexPos);
-        if (colonPos >= 0) {
-            channelIndex = payload.substring(colonPos + 1).toInt();
+    if (payload.indexOf("\"mode\"") >= 0) {
+        // 模式切换指令
+        if (payload.indexOf("\"auto\"") >= 0) {
+            cmd.mode = MODE_AUTO;
+        } else if (payload.indexOf("\"manual\"") >= 0) {
+            cmd.mode = MODE_MANUAL;
+        } else {
+            return;   // 无法识别
         }
+    } else if (payload.indexOf("\"pump\"") >= 0) {
+        // 手动开关指令
+        cmd.pumpOn = (payload.indexOf("\"on\"") >= 0);
+        int pos = payload.indexOf("\"index\"");
+        if (pos >= 0) {
+            int colon = payload.indexOf(':', pos);
+            if (colon >= 0) {
+                cmd.index = (uint8_t)payload.substring(colon + 1).toInt();
+            }
+        }
+    } else {
+        return;   // 非 pump 非 mode, 忽略
     }
 
-    if (payload.indexOf("\"on\"") >= 0) {
-        bool ok = irrigationService.turnOnIrrigation(channelIndex);
-        Serial.printf("[MQTT] pump ON -> channel %u (%s)\n",
-                      (unsigned)channelIndex, ok ? "OK" : "FAIL");
-    } else if (payload.indexOf("\"off\"") >= 0) {
-        bool ok = irrigationService.turnOffIrrigation(channelIndex);
-        Serial.printf("[MQTT] pump OFF -> channel %u (%s)\n",
-                      (unsigned)channelIndex, ok ? "OK" : "FAIL");
+    if (manualIrrQueue != nullptr) {
+        xQueueSend(manualIrrQueue, &cmd, 0);
     }
 }
 

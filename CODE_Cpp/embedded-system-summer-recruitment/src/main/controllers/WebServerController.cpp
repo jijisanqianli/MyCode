@@ -4,6 +4,7 @@
 #include <LittleFS.h>
 #include "WebServerController.h"
 #include "IrrigationService.h"
+#include "TaskConfig.h"
 #include <ctype.h>
 
 WebServerController::WebServerController(uint16_t port, IrrigationService& service, SensorService& sensors):
@@ -21,9 +22,41 @@ void WebServerController::setupRoutes() {
         file.close();
     });
 
-    // 获取传感器数据(温度/湿度/土壤), 数据由 SensorService 周期采样缓存
+    // 纯 MQTT 控制页面(WebSocket 直连 Broker, 不走 ESP32 HTTP API)
+    server.on("/irrigation-mqtt", HTTP_GET, [this]() {
+        File file = LittleFS.open("/irrigation-mqtt.html", "r");
+        if (!file) {
+            server.send(404, "text/plain", "File Not Found");
+            return;
+        }
+        server.streamFile(file, "text/html");
+        file.close();
+    });
+
+    // 获取传感器数据(温度/湿度/土壤/模式), 数据由 SensorService 周期采样缓存
     server.on("/api/sensors", HTTP_GET, [this]() {
-        server.send(200, "application/json", sensorService.getSensorsJson());
+        String json = sensorService.getSensorsJson();
+        // 在返回 JSON 尾部追加当前控制模式: {"temperature":..,"soil":..,"mode":"auto"}
+        json = json.substring(0, json.length() - 1);
+        json += ",\"mode\":\"" + String(controlMode == MODE_MANUAL ? "manual" : "auto") + "\"}";
+        server.send(200, "application/json", json);
+    });
+
+    // 切换控制模式(手动/自动): 指令也发 manualIrrQueue, 执行权收敛到 controlTask
+    server.on("/irrigation/mode", HTTP_POST, [this]() {
+        String mode = server.arg("mode");
+        if (mode != "auto" && mode != "manual") {
+            server.send(400, "text/plain", "mode must be auto or manual");
+            return;
+        }
+        Command_t cmd;
+        cmd.index  = 0;
+        cmd.pumpOn = false;
+        cmd.mode   = (mode == "auto") ? MODE_AUTO : MODE_MANUAL;
+        if (manualIrrQueue != nullptr) {
+            xQueueSend(manualIrrQueue, &cmd, 0);
+        }
+        server.send(200, "text/plain", "mode switch requested: " + mode);
     });
 
     // 获取通道列表

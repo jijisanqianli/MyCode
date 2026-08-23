@@ -197,4 +197,63 @@
 
 #### 前端使用
 
-页面 `data/irrigation.html` 每 2s 轮询该接口刷新顶部传感器卡片（温度/湿度/土壤）。
+页面 `data/irrigation.html` 每 2s 轮询该接口刷新顶部传感器卡片（温度/湿度/土壤/模式）。
+
+## 5. MQTT 接口（云端通道）
+
+ESP32 通过 MQTT 连接 EMQX Cloud Serverless Broker，实现**数据上报**与**指令下发**（与 HTTP 并行，控制权统一收敛到 `controlTask`）。
+
+### 5.1 连接信息
+
+| 项 | 值 |
+| --- | --- |
+| Broker 地址 | `i3daab3b.ala.cn-shenzhen.emqxsl.cn` |
+| 端口 | `8883`（MQTT over TLS） |
+| 认证 | 用户名/密码（部署侧配置） |
+| Client ID | `esp32-s3-irrigation`（同一 Broker 下需唯一） |
+
+### 5.2 数据上报主题（订阅）
+
+**主题**：`garden/esp32-s3/data`
+
+ESP32 每 5s 发布一次传感器数据（客户端订阅该主题即可接收）：
+
+```json
+{"device":"esp32-s3","temperature":28.9,"humidity":64.4,"soil":2,"mode":"auto"}
+```
+
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `device` | `string` | 设备标识 |
+| `temperature` | `number` | 温度（°C） |
+| `humidity` | `number` | 湿度（%） |
+| `soil` | `number` | 土壤湿度（0~100%） |
+| `mode` | `string` | 当前控制模式：`auto` / `manual` |
+
+### 5.3 控制指令主题（发布）
+
+**主题**：`garden/esp32-s3/cmd`
+
+客户端向该主题发布指令，ESP32 解析后执行（控制权收敛到 `controlTask`）：
+
+| 指令 JSON | 效果 |
+| --------- | ---- |
+| `{"pump":"on","index":0}` | 开启通道 0 灌溉，**并自动切换为手动模式** |
+| `{"pump":"off","index":1}` | 关闭通道 1 灌溉，并自动切换为手动模式 |
+| `{"mode":"auto"}` | 切换为自动灌溉模式（土壤低于阈值自动开泵） |
+| `{"mode":"manual"}` | 切换为手动控制模式（自动灌溉停止判断） |
+
+**模式规则**：
+- 开机默认 **auto**（自动灌溉：土壤 < 30% 开泵，> 60% 关泵，双阈值防抖）
+- 任何 `pump` 指令隐含切换为 `manual`
+- 回到自动模式需显式发送 `{"mode":"auto"}`
+
+### 5.4 HTTP 与 MQTT 对照
+
+| 功能 | HTTP | MQTT |
+| ---- | ---- | ---- |
+| 获取传感器数据 | `GET /api/sensors` | 订阅 `garden/esp32-s3/data`（实时推送） |
+| 控制灌溉 | `POST /irrigation/on?channel=N` | 发布 `{"pump":"on","index":N}` |
+| 切换模式 | `POST /irrigation/mode?mode=auto` | 发布 `{"mode":"auto"}` |
+
+> 注：HTTP 控制路由最终同样将指令发往 `manualIrrQueue`，与 MQTT 指令汇聚到同一个执行者（`controlTask`），保证控制行为一致、无并发竞争。

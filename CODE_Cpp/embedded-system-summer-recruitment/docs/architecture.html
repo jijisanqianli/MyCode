@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FreeRTOS 智能灌溉系统 · 深度学术架构可视化</title>
+
+  <!-- 1. Google Fonts 引入 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,700;1,400&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Noto+Serif+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <!-- 2. Tailwind CSS CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+
+  <!-- 3. MathJax v3 配置与 CDN -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+      }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    /* ===== 莫兰迪米色纸质感 (Premium Cream Theme) ===== */
+    :root {
+      --bg-cream: #faf8f4;
+      --card-white: #ffffff;
+      --border-gray: #e8e2d8;
+      --border-dark: #d5cdbf;
+      --text-main: #2c2824;
+      --text-muted: #6b6560;
+      --text-light: #a09890;
+
+      --accent-gold: #b89a6a;
+      --accent-green: #4a7c59;
+      --accent-blue: #4a6b82;
+      --accent-red: #c86b51;
+      --accent-purple: #7e6388;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      background-color: var(--bg-cream);
+      background-image: radial-gradient(#e0d8ca 0.8px, transparent 0.8px);
+      background-size: 28px 28px;
+      color: var(--text-main);
+      font-family: 'Noto Serif SC', Georgia, serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .font-serif-title { font-family: 'Cormorant Garamond', 'Noto Serif SC', serif; }
+    .font-mono-code { font-family: 'DM Mono', monospace; }
+
+    /* 高级纸质阴影卡片 */
+    .cream-card {
+      background-color: var(--card-white);
+      border: 1px solid var(--border-gray);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px -5px rgba(44, 40, 36, 0.03), 0 4px 12px -2px rgba(44, 40, 36, 0.02);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .cream-card:hover {
+      border-color: var(--border-dark);
+      box-shadow: 0 18px 42px -8px rgba(44, 40, 36, 0.07), 0 6px 18px -2px rgba(44, 40, 36, 0.04);
+    }
+
+    /* 滚动 Reveal 动画 */
+    .reveal-on-scroll {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+    }
+    .reveal-on-scroll.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* 自定义按钮点击与 Hover 特效 */
+    .btn-academic {
+      position: relative;
+      background-color: var(--card-white);
+      border: 1px solid var(--border-gray);
+      color: var(--text-main);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.85rem;
+      padding: 0.5rem 1.25rem;
+      border-radius: 8px;
+      cursor: pointer;
+      overflow: hidden;
+      transition: all 0.25s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      user-select: none;
+    }
+    .btn-academic:hover {
+      border-color: var(--accent-gold);
+      color: var(--accent-gold);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(184, 154, 106, 0.15);
+    }
+    .btn-academic:active {
+      transform: translateY(0);
+    }
+
+    /* 步骤指示点拉伸拉长 (Active Stretch) */
+    .step-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background-color: var(--border-gray);
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      cursor: pointer;
+    }
+    .step-dot.active {
+      width: 32px;
+      background-color: var(--accent-gold);
+      border-radius: 999px;
+    }
+
+    /* MathJax 容器样式微调 */
+    .mjx-chtml {
+      font-size: 105% !important;
+      color: var(--text-main) !important;
+    }
+
+    /* 自定义 Canvas 包装器 */
+    .canvas-wrapper {
+      position: relative;
+      width: 100%;
+      height: 600px;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #fdfbf7;
+      border: 1px solid var(--border-gray);
+    }
+
+    /* Canvas 悬浮提示框 */
+    #tooltip {
+      position: absolute;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      background: rgba(44, 40, 36, 0.92);
+      color: #faf8f4;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: 'DM Mono', monospace;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+      z-index: 50;
+      backdrop-filter: blur(4px);
+    }
+  </style>
+</head>
+<body class="p-4 md:p-8">
+
+  <!-- ================= 1. HERO 标题区 ================= -->
+  <header class="max-w-6xl mx-auto text-center mb-12 reveal-on-scroll">
+    <div class="flex justify-center items-center gap-3 mb-4 flex-wrap">
+      <span class="px-3 py-1 text-xs font-mono-code rounded-full bg-yellow-900 bg-opacity-10 text-yellow-800 border border-yellow-700 border-opacity-20">
+        FreeRTOS Real-Time Kernel
+      </span>
+      <span class="px-3 py-1 text-xs font-mono-code rounded-full bg-green-900 bg-opacity-10 text-green-800 border border-green-700 border-opacity-20">
+        ESP32-S3 Dual-Core SMP
+      </span>
+      <span class="px-3 py-1 text-xs font-mono-code rounded-full bg-blue-900 bg-opacity-10 text-blue-800 border border-blue-700 border-opacity-20">
+        Controller-Service-Driver Architecture
+      </span>
+    </div>
+    <h1 class="font-serif-title text-4xl md:text-5xl font-bold tracking-tight text-gray-900 mb-3">
+      嵌入式 FreeRTOS 多任务架构可视化
+    </h1>
+    <p class="text-sm md:text-base text-gray-600 max-w-3xl mx-auto leading-relaxed">
+      解构智能灌溉系统：横向“Controller $\to$ Service $\to$ Driver”三层解耦与纵向“FreeRTOS 抢占式调度 $\times$ 跨核 IPC 队列”运行全貌。
+    </p>
+  </header>
+
+  <!-- ================= 2. 核心原理卡片区 ================= -->
+  <section class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+    <!-- 原理卡片 1 -->
+    <div class="cream-card p-6 reveal-on-scroll">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="w-3 h-3 rounded-full" style="background: var(--accent-gold);"></span>
+        <h3 class="font-bold text-lg">分层架构 (Layering)</h3>
+      </div>
+      <p class="text-xs text-gray-600 leading-relaxed mb-4">
+        严格遵从单向依赖原则 $\mathcal{L}_{\text{Ctrl}} \to \mathcal{L}_{\text{Svc}} \to \mathcal{L}_{\text{Drv}}$。Controller 处理外部协议，Service 完成业务逻辑，Driver 隔离底层硬件 GPIO/I2C 寄存器。
+      </p>
+      <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 font-mono-code text-xs text-gray-700">
+        $\text{Dependency: } \text{Upper} \Downarrow \text{Lower}$
+      </div>
+    </div>
+
+    <!-- 原理卡片 2 -->
+    <div class="cream-card p-6 reveal-on-scroll">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="w-3 h-3 rounded-full" style="background: var(--accent-blue);"></span>
+        <h3 class="font-bold text-lg">任务模型 (Task Model)</h3>
+      </div>
+      <p class="text-xs text-gray-600 leading-relaxed mb-4">
+        每个任务定义为三元组 $\tau_i = (P_i, C_i, T_i)$，其中 $P_i$ 为优先级，$C_i$ 为 Worst-Case 运行时间，$T_i$ 为调度周期。调度器采用 Fixed-Priority Preemptive (固定优先级抢占)。
+      </p>
+      <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 font-mono-code text-xs text-gray-700">
+        $U = \sum_{i=1}^{N} \frac{C_i}{T_i} \le N(2^{1/N} - 1)$
+      </div>
+    </div>
+
+    <!-- 原理卡片 3 -->
+    <div class="cream-card p-6 reveal-on-scroll">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="w-3 h-3 rounded-full" style="background: var(--accent-green);"></span>
+        <h3 class="font-bold text-lg">跨核 IPC 通信 (Queues)</h3>
+      </div>
+      <p class="text-xs text-gray-600 leading-relaxed mb-4">
+        通过 FreeRTOS Queue 传递深拷贝结构体（Value Passing），实现 Core 0 与 Core 1 间无锁安全解耦，时延模型满足 $\tau_{\text{IPC}} = \tau_{\text{wait}} + \tau_{\text{copy}}$。
+      </p>
+      <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 font-mono-code text-xs text-gray-700">
+        $\text{Queue}_{\text{capacity}} = k \cdot \text{sizeof}(\mathbf{Struct})$
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 3. 交互式逐步演示区 (CANVAS 主体) ================= -->
+  <section class="max-w-6xl mx-auto mb-12 reveal-on-scroll">
+    <div class="cream-card p-6">
+      
+      <!-- 控制面板 Header -->
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-4 border-b border-gray-200">
+        <div>
+          <h2 class="font-serif-title text-2xl font-bold text-gray-900">架构拓扑与交互式执行流 Simulator</h2>
+          <p class="text-xs text-gray-500 font-mono-code mt-1">FreeRTOS Task Execution & Layer Interaction Dynamics</p>
+        </div>
+
+        <!-- 交互按钮组 -->
+        <div class="flex items-center gap-3 flex-wrap">
+          <button id="btnPrev" class="btn-academic">
+            <span>&larr;</span> 上一步
+          </button>
+          <button id="btnPlay" class="btn-academic" style="border-color: var(--accent-gold); color: var(--accent-gold);">
+            <span id="playIcon">&#9654;</span> <span id="playText">自动播放</span>
+          </button>
+          <button id="btnNext" class="btn-academic">
+            下一步 <span>&rarr;</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 节点颜色图例说明 (Color Legend) -->
+      <div class="flex items-center justify-start gap-4 mb-4 px-2 flex-wrap text-xs font-mono-code text-gray-600 border-b border-gray-100 pb-3">
+        <span class="font-bold text-gray-800">节点颜色图例：</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full inline-block" style="background:#4a6b82;"></span>采集与网络服务</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full inline-block" style="background:#c86b51;"></span>实时控制与控制队列</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full inline-block" style="background:#4a7c59;"></span>显示任务与数据队列</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full inline-block" style="background:#7e6388;"></span>Web API 控制器</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full inline-block" style="background:#b89a6a;"></span>底层硬件驱动</span>
+      </div>
+
+      <!-- 步骤指示器 (Dots) -->
+      <div class="flex items-center justify-between mb-4 px-2">
+        <div class="flex items-center gap-2" id="dotsContainer">
+          <!-- JS 动态注入 Dots -->
+        </div>
+        <div class="text-xs font-mono-code text-gray-500">
+          Step <span id="stepNum" class="font-bold text-gray-800">0</span> / 6
+        </div>
+      </div>
+
+      <!-- Canvas 高清渲染窗口 -->
+      <div class="canvas-wrapper">
+        <canvas id="topoCanvas"></canvas>
+        <div id="tooltip"></div>
+      </div>
+
+      <!-- 动态步骤解释卡片 (动态渲染 MathJax) -->
+      <div class="mt-6 p-5 rounded-xl bg-yellow-500 bg-opacity-5 border border-yellow-600 border-opacity-20 transition-all duration-300" id="stepExplainerCard">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="px-2 py-0.5 text-xs font-mono-code rounded bg-yellow-800 bg-opacity-10 text-yellow-800 font-semibold" id="stepTag">
+            STEP 0
+          </span>
+          <h4 class="font-bold text-base text-gray-900" id="stepTitle">加载中...</h4>
+        </div>
+        <div class="text-xs text-gray-700 leading-relaxed font-serif-title text-sm" id="stepDesc">
+          解释器文本填充区...
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= 4. 全貌对比/数据 DASHBOARD 区 ================= -->
+  <section class="max-w-6xl mx-auto mb-12 reveal-on-scroll">
+    <div class="section-title flex items-center gap-3 mb-6">
+      <span class="w-3 h-3 rounded-full bg-gray-800"></span>
+      <h2 class="font-serif-title text-2xl font-bold">全系统 Task 与 Queue 调度指标 Dashboard</h2>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <!-- 任务调度 Table -->
+      <div class="cream-card p-6">
+        <h3 class="font-bold text-base mb-4 flex items-center justify-between">
+          <span>FreeRTOS 任务控制块 (TCB) 矩阵</span>
+          <span class="text-xs font-mono-code text-gray-400">SMP Core Binding</span>
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-mono-code">
+            <thead>
+              <tr class="border-b border-gray-200 text-gray-400">
+                <th class="pb-2">Task Name</th>
+                <th class="pb-2">Core</th>
+                <th class="pb-2">Priority</th>
+                <th class="pb-2">Period</th>
+                <th class="pb-2">Layer</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 text-gray-700">
+              <tr>
+                <td class="py-2.5 font-bold text-red-700">controlTask</td>
+                <td class="py-2.5">Core 1</td>
+                <td class="py-2.5"><span class="px-1.5 py-0.5 bg-red-100 text-red-800 rounded">P3 (High)</span></td>
+                <td class="py-2.5">Event-driven</td>
+                <td class="py-2.5">Service/Driver</td>
+              </tr>
+              <tr>
+                <td class="py-2.5 font-bold text-blue-700">sensorTask</td>
+                <td class="py-2.5">Core 0</td>
+                <td class="py-2.5"><span class="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded">P2 (Mid)</span></td>
+                <td class="py-2.5">2000 ms</td>
+                <td class="py-2.5">Service/Driver</td>
+              </tr>
+              <tr>
+                <td class="py-2.5 font-bold text-blue-700">mqttTask</td>
+                <td class="py-2.5">Core 0</td>
+                <td class="py-2.5"><span class="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded">P2 (Mid)</span></td>
+                <td class="py-2.5">5000 ms</td>
+                <td class="py-2.5">Service/Driver</td>
+              </tr>
+              <tr>
+                <td class="py-2.5 font-bold text-green-700">oledTask</td>
+                <td class="py-2.5">Core 1</td>
+                <td class="py-2.5"><span class="px-1.5 py-0.5 bg-gray-100 text-gray-800 rounded">P1 (Low)</span></td>
+                <td class="py-2.5">500 ms</td>
+                <td class="py-2.5">Driver</td>
+              </tr>
+              <tr>
+                <td class="py-2.5 font-bold text-purple-700">loopTask (Web)</td>
+                <td class="py-2.5">Core 0</td>
+                <td class="py-2.5"><span class="px-1.5 py-0.5 bg-gray-100 text-gray-800 rounded">P1 (Low)</span></td>
+                <td class="py-2.5">Async</td>
+                <td class="py-2.5">Controller</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 负载与解耦评价 -->
+      <div class="cream-card p-6 flex flex-col justify-between">
+        <div>
+          <h3 class="font-bold text-base mb-4">ESP32-S3 双核负载平衡与解耦度度量</h3>
+          
+          <div class="mb-4">
+            <div class="flex justify-between text-xs font-mono-code mb-1">
+              <span>Core 0 (PRO_CPU) - 协议与采样核</span>
+              <span class="font-bold text-blue-700">38% Peak Load</span>
+            </div>
+            <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+              <div class="bg-blue-600 h-full rounded-full" style="width: 38%"></div>
+            </div>
+          </div>
+
+          <div class="mb-6">
+            <div class="flex justify-between text-xs font-mono-code mb-1">
+              <span>Core 1 (APP_CPU) - 实时控制与 UI 核</span>
+              <span class="font-bold text-green-700">22% Peak Load</span>
+            </div>
+            <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+              <div class="bg-green-600 h-full rounded-full" style="width: 22%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+          <div class="text-xs font-bold text-gray-800 mb-1">架构内聚与解耦评分 (Coupling Metric)</div>
+          <p class="text-xs text-gray-600 leading-relaxed">
+            模块间耦合度 $C_{\text{metric}} \to 0$。驱动层不依赖任何上层逻辑，Service 层不感知 ESP32 芯片 Pin 脚分配，实现高内聚低耦合。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 5. 页脚 ================= -->
+  <footer class="max-w-6xl mx-auto pt-8 border-t border-gray-300 text-center text-xs font-mono-code text-gray-500 mb-8">
+    <p>FreeRTOS Advanced Visualization System · Academic Edition</p>
+    <p class="mt-1 text-gray-400">Built with HTML5 Canvas, MathJax v3 & Morandi Cream UI Guidelines</p>
+  </footer>
+
+  <!-- ================= 6. JavaScript 全量逻辑引擎 ================= -->
+  <script>
+    // ==========================================
+    // 6.1 状态数据定义 (STEPS State Machine)
+    // ==========================================
+    const STEPS = [
+      {
+        step: 0,
+        title: "系统架构静态全貌与双核/分层映射",
+        tag: "STEP 0: OVERVIEW",
+        desc: "系统由 <b>Core 0</b> (网络/采样) 与 <b>Core 1</b> (控制/显示) 构成双核 SMP 运行环境。软件划分为 Controller、Service、Driver 三层。全节点处于就绪态，等待触发机制。",
+        highlightNodes: ["sensorTask", "mqttTask", "controlTask", "oledTask", "loopTask", "oledQueue", "latestDataQueue", "autoIrrQueue", "manualIrrQueue", "SensorSvc", "MqttSvc", "IrrigSvc", "WebCtrl", "EnvDriver", "SoilDriver", "IrrigDriver", "OledDriver", "MqttDriver"],
+        highlightEdges: []
+      },
+      {
+        step: 1,
+        title: "传感器采样周期 (sensorTask $\\to$ Drivers)",
+        tag: "STEP 1: SENSING",
+        desc: "<code>sensorTask</code> (Core 0, P2) 周期被唤醒，通过 <code>SensorService</code> 分别触发 <code>EnvSensorDriver</code> (DHT22) 和 <code>SoilSensorDriver</code> (ADC) 完成物理量转换。<br>数学表达式：$y_{\\text{env}} = f_{\\text{calibration}}(\\text{ADC}_{raw})$。",
+        highlightNodes: ["sensorTask", "SensorSvc", "EnvDriver", "SoilDriver"],
+        highlightEdges: ["sensorTask-SensorSvc", "SensorSvc-EnvDriver", "SensorSvc-SoilDriver"]
+      },
+      {
+        step: 2,
+        title: "跨核 IPC 数据分发 (oledQueue / latestDataQueue / autoIrrQueue)",
+        tag: "STEP 2: QUEUE PUSH",
+        desc: "<code>sensorTask</code> 将组装好的 <code>SensorData_t</code> 结构体分发到三条通道：<code>oledQueue</code>(OLED 显示)、<code>latestDataQueue</code>(容量 1, <code>xQueueOverwrite</code> 覆盖写, 供 MQTT 取最新值)、<code>autoIrrQueue</code>(自动灌溉判断)。每个队列唯一消费者，避免广播竞争。",
+        highlightNodes: ["sensorTask", "oledQueue", "latestDataQueue", "autoIrrQueue"],
+        highlightEdges: ["sensorTask-oledQueue", "sensorTask-latestDataQueue", "sensorTask-autoIrrQueue"]
+      },
+      {
+        step: 3,
+        title: "消费与最新值读取 (oledTask & mqttTask)",
+        tag: "STEP 3: CONSUME & PEEK",
+        desc: "Core 1 的 <code>oledTask</code> 从 <code>oledQueue</code> 弹栈渲染屏幕 (<code>OledDisplayDriver</code>)；Core 0 的 <code>mqttTask</code> 用 <code>xQueuePeek</code> 偷看 <code>latestDataQueue</code>(容量 1, 不删除数据, 拿到的是同一次采样的完整结构体, 保证数据一致性), 调用 <code>MqttService</code> 打包 JSON 并通过 <code>MqttDriver</code> 发送至 EMQX 云端 Broker。",
+        highlightNodes: ["oledQueue", "oledTask", "OledDriver", "latestDataQueue", "mqttTask", "MqttSvc", "MqttDriver"],
+        highlightEdges: ["oledQueue-oledTask", "oledTask-OledDriver", "latestDataQueue-mqttTask", "mqttTask-MqttSvc", "MqttSvc-MqttDriver"]
+      },
+      {
+        step: 4,
+        title: "手动灌溉指令汇聚 (Push manualIrrQueue)",
+        tag: "STEP 4: MANUAL COMMAND",
+        desc: "云端 MQTT 指令经 <code>mqttTask</code> 解包、网页控制经 <code>WebServerController</code> 解析，统一压入 <code>manualIrrQueue</code>：$\\text{Cmd}_{type} = \\text{CMD_START_IRRIGATION}$。",
+        highlightNodes: ["mqttTask", "WebCtrl", "manualIrrQueue"],
+        highlightEdges: ["mqttTask-manualIrrQueue", "WebCtrl-manualIrrQueue"]
+      },
+      {
+        step: 5,
+        title: "最高优先级抢占式控制 (controlTask Execution)",
+        tag: "STEP 5: PREEMPT CONTROL",
+        desc: "<code>controlTask</code> (Core 1, Priority 3 最高优先级) 通过队列集同时等待 <code>manualIrrQueue</code>(手动指令) 与 <code>autoIrrQueue</code>(自动灌溉触发)。任一事件到达立即抢占 CPU：手动指令执行开关, 自动灌溉按土壤阈值判断, 都调用 <code>IrrigationService</code> 触发 <code>IrrigationDriver</code>。",
+        highlightNodes: ["manualIrrQueue", "autoIrrQueue", "controlTask", "IrrigSvc", "IrrigDriver"],
+        highlightEdges: ["manualIrrQueue-controlTask", "autoIrrQueue-controlTask", "controlTask-IrrigSvc", "IrrigSvc-IrrigDriver"]
+      },
+      {
+        step: 6,
+        title: "Web 控制器异步查询 (WebServerController)",
+        tag: "STEP 6: WEB API RESPONSE",
+        desc: "手机/Web 客户端访问 <code>loopTask</code> (WebServer)。<code>WebServerController</code> 直接从 <code>SensorService</code> 与 <code>IrrigationService</code> 获取缓存快照，无锁返回 JSON 响应。",
+        highlightNodes: ["loopTask", "WebCtrl", "SensorSvc", "IrrigSvc"],
+        highlightEdges: ["loopTask-WebCtrl", "WebCtrl-SensorSvc", "WebCtrl-IrrigSvc"]
+      }
+    ];
+
+    // ==========================================
+    // 6.2 拓扑节点坐标重新规划 (规避标签 overlap)
+    // Driver (ny: 0.13) | Service/Task (ny: 0.32 - 0.64) | Controller (ny: 0.86)
+    // ==========================================
+    const RAW_NODES = [
+      // Driver Layer (顶部 DRIVER LAYER 区域，水平等距排开)
+      { id: "MqttDriver", name: "MqttDriver",       layer: "Driver", nx: 0.16, ny: 0.13, color: "#b89a6a" },
+      { id: "EnvDriver",  name: "EnvSensorDriver",  layer: "Driver", nx: 0.31, ny: 0.13, color: "#b89a6a" },
+      { id: "SoilDriver", name: "SoilSensorDriver", layer: "Driver", nx: 0.45, ny: 0.13, color: "#b89a6a" },
+      { id: "IrrigDriver",name: "IrrigationDriver", layer: "Driver", nx: 0.69, ny: 0.13, color: "#b89a6a" },
+      { id: "OledDriver", name: "OledDisplayDriver",layer: "Driver", nx: 0.86, ny: 0.13, color: "#b89a6a" },
+
+      // Core 0 Tasks & Services (Middle Left)
+      { id: "sensorTask", name: "sensorTask", layer: "Task", core: "Core 0", priority: 2, nx: 0.12, ny: 0.33, color: "#4a6b82" },
+      { id: "SensorSvc",  name: "SensorService", layer: "Service",    nx: 0.30, ny: 0.33, color: "#4a6b82" },
+      { id: "mqttTask",   name: "mqttTask",   layer: "Task", core: "Core 0", priority: 2, nx: 0.12, ny: 0.58, color: "#4a6b82" },
+      { id: "MqttSvc",    name: "MqttService",   layer: "Service",    nx: 0.30, ny: 0.58, color: "#4a6b82" },
+
+      // Shared Queues (Center Column nx: 0.50)
+      { id: "oledQueue",      name: "oledQueue",      layer: "Queue", core: "Shared", capacity: 10, nx: 0.50, ny: 0.22, color: "#4a7c59" },
+      { id: "latestDataQueue",name: "latestDataQueue",layer: "Queue", core: "Shared", capacity: 1,  nx: 0.50, ny: 0.38, color: "#4a7c59" },
+      { id: "autoIrrQueue",   name: "autoIrrQueue",   layer: "Queue", core: "Shared", capacity: 10, nx: 0.50, ny: 0.54, color: "#4a7c59" },
+      { id: "manualIrrQueue", name: "manualIrrQueue", layer: "Queue", core: "Shared", capacity: 5,  nx: 0.50, ny: 0.68, color: "#c86b51" },
+
+      // Core 1 Tasks & Services (Middle Right)
+      { id: "oledTask",   name: "oledTask",   layer: "Task", core: "Core 1", priority: 1, nx: 0.82, ny: 0.31, color: "#4a7c59" },
+      { id: "IrrigSvc",   name: "IrrigationSvc", layer: "Service",    nx: 0.68, ny: 0.48, color: "#c86b51" },
+      { id: "controlTask",name: "controlTask",layer: "Task", core: "Core 1", priority: 3, nx: 0.82, ny: 0.48, color: "#c86b51" },
+
+      // Controller Layer (Bottom Area ny: 0.86)
+      { id: "loopTask",   name: "loopTask",   layer: "Task", core: "Core 0", priority: 1, nx: 0.12, ny: 0.86, color: "#7e6388" },
+      { id: "WebCtrl",    name: "WebServerCtrl", layer: "Controller", nx: 0.32, ny: 0.86, color: "#7e6388" }
+    ];
+
+    const RAW_EDGES = [
+      { id: "sensorTask-SensorSvc", from: "sensorTask", to: "SensorSvc" },
+      { id: "SensorSvc-EnvDriver",  from: "SensorSvc",  to: "EnvDriver" },
+      { id: "SensorSvc-SoilDriver", from: "SensorSvc",  to: "SoilDriver" },
+      { id: "sensorTask-oledQueue",      from: "sensorTask",      to: "oledQueue" },
+      { id: "sensorTask-latestDataQueue",from: "sensorTask",      to: "latestDataQueue" },
+      { id: "sensorTask-autoIrrQueue",   from: "sensorTask",      to: "autoIrrQueue" },
+      { id: "oledQueue-oledTask",        from: "oledQueue",       to: "oledTask" },
+      { id: "latestDataQueue-mqttTask",  from: "latestDataQueue", to: "mqttTask" },
+      { id: "autoIrrQueue-controlTask",  from: "autoIrrQueue",    to: "controlTask" },
+      { id: "oledTask-OledDriver",       from: "oledTask",        to: "OledDriver" },
+      { id: "mqttTask-MqttSvc",          from: "mqttTask",        to: "MqttSvc" },
+      { id: "MqttSvc-MqttDriver",        from: "MqttSvc",         to: "MqttDriver" },
+      { id: "mqttTask-manualIrrQueue",   from: "mqttTask",        to: "manualIrrQueue" },
+      { id: "WebCtrl-manualIrrQueue",    from: "WebCtrl",         to: "manualIrrQueue" },
+      { id: "manualIrrQueue-controlTask",from: "manualIrrQueue",  to: "controlTask" },
+      { id: "controlTask-IrrigSvc",      from: "controlTask",     to: "IrrigSvc" },
+      { id: "IrrigSvc-IrrigDriver",      from: "IrrigSvc",        to: "IrrigDriver" },
+      { id: "loopTask-WebCtrl",          from: "loopTask",        to: "WebCtrl" },
+      { id: "WebCtrl-SensorSvc",         from: "WebCtrl",         to: "SensorSvc" },
+      { id: "WebCtrl-IrrigSvc",          from: "WebCtrl",         to: "IrrigSvc" }
+    ];
+
+    // ==========================================
+    // 6.3 Canvas 渲染与物理引擎 (Lerp + Stagger)
+    // ==========================================
+    class VisualizerEngine {
+      constructor(canvasId, containerId) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+        this.container = this.canvas.parentElement;
+        this.tooltip = document.getElementById('tooltip');
+
+        this.currentStepIndex = 0;
+        this.isPlaying = false;
+        this.playTimer = null;
+
+        // 动画插值状态记录
+        this.nodeStates = {};
+        RAW_NODES.forEach(node => {
+          this.nodeStates[node.id] = {
+            scale: 1.0,
+            targetScale: 1.0,
+            alpha: 1.0,
+            targetAlpha: 1.0
+          };
+        });
+
+        // 沿 Edge 滚动的粒子集
+        this.particles = [];
+
+        this.initDpi();
+        this.bindEvents();
+        this.updateStepUI();
+        this.animate();
+      }
+
+      // High-DPI Polyfill 适配
+      initDpi() {
+        const rect = this.container.getBoundingClientRect();
+        this.width = rect.width;
+        this.height = rect.height;
+        this.dpr = window.devicePixelRatio || 1;
+
+        this.canvas.width = this.width * this.dpr;
+        this.canvas.height = this.height * this.dpr;
+        this.canvas.style.width = `${this.width}px`;
+        this.canvas.style.height = `${this.height}px`;
+
+        this.ctx.scale(this.dpr, this.dpr);
+      }
+
+      // 归一化坐标转换为 Canvas 实际像素
+      toPx(nx, ny) {
+        return {
+          x: nx * this.width,
+          y: ny * this.height
+        };
+      }
+
+      bindEvents() {
+        window.addEventListener('resize', () => this.initDpi());
+
+        // 鼠标 Hover 碰撞检测
+        this.canvas.addEventListener('mousemove', (e) => {
+          const rect = this.canvas.getBoundingClientRect();
+          const mx = e.clientX - rect.left;
+          const my = e.clientY - rect.top;
+
+          let hovered = null;
+          RAW_NODES.forEach(node => {
+            const pos = this.toPx(node.nx, node.ny);
+            const dist = Math.hypot(pos.x - mx, pos.y - my);
+            if (dist < 22) hovered = node;
+          });
+
+          if (hovered) {
+            this.tooltip.style.opacity = '1';
+            this.tooltip.style.transform = `translate(${mx + 15}px, ${my + 10}px)`;
+            this.tooltip.innerHTML = `
+              <div class="font-bold text-yellow-400">${hovered.name}</div>
+              <div class="text-xs text-gray-300">Layer: ${hovered.layer}</div>
+              ${hovered.core ? `<div class="text-xs text-gray-300">Core: ${hovered.core}</div>` : ''}
+              ${hovered.priority ? `<div class="text-xs text-gray-300">Priority: ${hovered.priority}</div>` : ''}
+            `;
+          } else {
+            this.tooltip.style.opacity = '0';
+          }
+        });
+
+        // 键盘方向键绑定
+        window.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowRight') this.nextStep();
+          if (e.key === 'ArrowLeft') this.prevStep();
+          if (e.key === ' ') { e.preventDefault(); this.togglePlay(); }
+        });
+
+        // UI 按钮绑定
+        document.getElementById('btnNext').addEventListener('click', () => this.nextStep());
+        document.getElementById('btnPrev').addEventListener('click', () => this.prevStep());
+        document.getElementById('btnPlay').addEventListener('click', () => this.togglePlay());
+      }
+
+      setStep(index) {
+        this.currentStepIndex = index;
+        const currentStepObj = STEPS[this.currentStepIndex];
+
+        // 更新节点的目标 Scale 与 Alpha (Lerp 渐变)
+        RAW_NODES.forEach(node => {
+          const isHighlighted = currentStepObj.highlightNodes.includes(node.id);
+          this.nodeStates[node.id].targetScale = isHighlighted ? 1.25 : 0.85;
+          this.nodeStates[node.id].targetAlpha = isHighlighted ? 1.0 : 0.25;
+        });
+
+        // 衍生高亮 Edges 上的运动粒子 (Stagger 错开发射)
+        this.particles = [];
+        currentStepObj.highlightEdges.forEach((edgeId, idx) => {
+          const edge = RAW_EDGES.find(e => e.id === edgeId);
+          if (edge) {
+            for (let p = 0; p < 2; p++) {
+              this.particles.push({
+                edge: edge,
+                progress: -idx * 0.2 - p * 0.4, // Stagger 时序错开
+                speed: 0.015
+              });
+            }
+          }
+        });
+
+        this.updateStepUI();
+      }
+
+      nextStep() {
+        const nextIdx = (this.currentStepIndex + 1) % STEPS.length;
+        this.setStep(nextIdx);
+      }
+
+      prevStep() {
+        const prevIdx = (this.currentStepIndex - 1 + STEPS.length) % STEPS.length;
+        this.setStep(prevIdx);
+      }
+
+      togglePlay() {
+        this.isPlaying = !this.isPlaying;
+        const playIcon = document.getElementById('playIcon');
+        const playText = document.getElementById('playText');
+
+        if (this.isPlaying) {
+          playIcon.innerHTML = '&#10074;&#10074;';
+          playText.innerText = '暂停';
+          this.playTimer = setInterval(() => this.nextStep(), 3200);
+        } else {
+          playIcon.innerHTML = '&#9654;';
+          playText.innerText = '自动播放';
+          clearInterval(this.playTimer);
+        }
+      }
+
+      updateStepUI() {
+        const stepData = STEPS[this.currentStepIndex];
+        
+        document.getElementById('stepNum').innerText = this.currentStepIndex;
+        document.getElementById('stepTag').innerText = stepData.tag;
+        document.getElementById('stepTitle').innerText = stepData.title;
+
+        // 动态插入带 LaTeX 公式的内容并触发 MathJax 渲染
+        const descContainer = document.getElementById('stepDesc');
+        descContainer.innerHTML = stepData.desc;
+        if (window.MathJax && MathJax.typesetPromise) {
+          MathJax.typesetPromise([descContainer]);
+        }
+
+        // 更新 Dots 状态
+        const dotsContainer = document.getElementById('dotsContainer');
+        dotsContainer.innerHTML = '';
+        STEPS.forEach((s, idx) => {
+          const dot = document.createElement('div');
+          dot.className = `step-dot ${idx === this.currentStepIndex ? 'active' : ''}`;
+          dot.addEventListener('click', () => this.setStep(idx));
+          dotsContainer.appendChild(dot);
+        });
+      }
+
+      // 绘制带填充和边框的漂亮圆角徽章 (Badge Pill)
+      drawBadge(x, y, text, textColor, bgColor, borderColor = null) {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.font = '600 10.5px "DM Mono", monospace';
+        const paddingX = 10;
+        const h = 22;
+        const textMetrics = ctx.measureText(text);
+        const w = textMetrics.width + paddingX * 2;
+
+        // Background
+        ctx.fillStyle = bgColor;
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(x, y, w, h, 6);
+        } else {
+          ctx.rect(x, y, w, h);
+        }
+        ctx.fill();
+
+        if (borderColor) {
+          ctx.strokeStyle = borderColor;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+
+        // Text
+        ctx.fillStyle = textColor;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, x + paddingX, y + h / 2 + 1);
+        ctx.restore();
+      }
+
+      // 主渲染循环 (Mathematical Lerp Interpolation)
+      animate() {
+        this.ctx.clearRect(0, 0, this.width, this.height);
+
+        // 1. 绘制背景分层泳道与中轴分割线
+        this.drawBackgroundZones();
+
+        // 2. 更新 Lerp 动画插值
+        RAW_NODES.forEach(node => {
+          const st = this.nodeStates[node.id];
+          st.scale += (st.targetScale - st.scale) * 0.08;
+          st.alpha += (st.targetAlpha - st.alpha) * 0.08;
+        });
+
+        // 3. 绘制拓扑连线
+        this.drawEdges();
+
+        // 4. 绘制动画粒子
+        this.drawParticles();
+
+        // 5. 绘制拓扑节点
+        this.drawNodes();
+
+        requestAnimationFrame(() => this.animate());
+      }
+
+      drawBackgroundZones() {
+        const ctx = this.ctx;
+        const w = this.width;
+        const h = this.height;
+
+        // --- A. 3层背景泳道色块 (Layer Swimlanes) ---
+        // 1. Driver Layer (0 ~ 0.23h) - 温暖淡金底色
+        ctx.fillStyle = 'rgba(184, 154, 106, 0.07)';
+        ctx.fillRect(0, 0, w, h * 0.23);
+
+        // 2. Service Layer (0.23h ~ 0.74h) - 极简灰蓝底色
+        ctx.fillStyle = 'rgba(74, 107, 130, 0.03)';
+        ctx.fillRect(0, h * 0.23, w, h * 0.51);
+
+        // 3. Controller Layer (0.74h ~ 1.0h) - 典雅浅紫底色
+        ctx.fillStyle = 'rgba(126, 99, 136, 0.06)';
+        ctx.fillRect(0, h * 0.74, w, h * 0.26);
+
+        // --- B. Core 1 右侧半区淡绿叠加，形成双核矩阵 ---
+        ctx.fillStyle = 'rgba(74, 124, 89, 0.035)';
+        ctx.fillRect(w * 0.50, 0, w * 0.50, h);
+
+        // --- C. 深色高对比度分隔线条 (High-Contrast Dividers) ---
+        // 横向分层线 1 (Driver / Service 分界线)
+        ctx.strokeStyle = '#b5ac9d';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(0, h * 0.23);
+        ctx.lineTo(w, h * 0.23);
+        ctx.stroke();
+
+        // 横向分层线 2 (Service / Controller 分界线)
+        ctx.beginPath();
+        ctx.moveTo(0, h * 0.74);
+        ctx.lineTo(w, h * 0.74);
+        ctx.stroke();
+
+        // 纵向双核分割中轴线 (Core 0 / Core 1)
+        ctx.strokeStyle = '#a89f90';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(w * 0.50, 0);
+        ctx.lineTo(w * 0.50, h);
+        ctx.stroke();
+
+        ctx.setLineDash([]); // 恢复实线
+
+        // --- D. 顶部 Core 0 / Core 1 核心区域徽章 (Core Badges) ---
+        this.drawBadge(16, 10, 'CORE 0 (PRO_CPU) · Sensing & Networking', '#2c4252', '#e2e8ed', '#b3c3cf');
+        this.drawBadge(w * 0.50 + 16, 10, 'CORE 1 (APP_CPU) · Control & Display', '#26422d', '#e0ebd9', '#aecfa5');
+
+        // --- E. 左侧层级高对比度名称徽章 (Layer Labels) ---
+        // Driver Layer Label
+        this.drawBadge(16, h * 0.23 - 30, 'DRIVER LAYER (Hardware Drivers)', '#5e4b2d', '#f2ece1', '#d4c5ab');
+        // Service Layer Label
+        this.drawBadge(16, h * 0.23 + 10, 'SERVICE LAYER (Business Logic)', '#2b3f4d', '#e6edf2', '#b8cbd9');
+        // Controller Layer Label
+        this.drawBadge(16, h * 0.74 + 10, 'CONTROLLER LAYER (External API)', '#412d4a', '#ede6f0', '#cbbbd4');
+      }
+
+      drawEdges() {
+        const ctx = this.ctx;
+        const currentStepObj = STEPS[this.currentStepIndex];
+
+        RAW_EDGES.forEach(edge => {
+          const fromNode = RAW_NODES.find(n => n.id === edge.from);
+          const toNode = RAW_NODES.find(n => n.id === edge.to);
+
+          const p1 = this.toPx(fromNode.nx, fromNode.ny);
+          const p2 = this.toPx(toNode.nx, toNode.ny);
+
+          const isHighlighted = currentStepObj.highlightEdges.includes(edge.id);
+
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          // 使用贝塞尔曲线增加线条柔和度
+          const midY = (p1.y + p2.y) / 2;
+          ctx.bezierCurveTo(p1.x, midY, p2.x, midY, p2.x, p2.y);
+
+          ctx.strokeStyle = isHighlighted ? '#b89a6a' : '#e0d8ca';
+          ctx.lineWidth = isHighlighted ? 2.5 : 1.0;
+          ctx.globalAlpha = isHighlighted ? 1.0 : 0.4;
+          ctx.stroke();
+          ctx.globalAlpha = 1.0;
+        });
+      }
+
+      drawParticles() {
+        const ctx = this.ctx;
+
+        this.particles.forEach(p => {
+          p.progress += p.speed;
+          if (p.progress > 1.0) p.progress = 0;
+
+          if (p.progress >= 0) {
+            const fromNode = RAW_NODES.find(n => n.id === p.edge.from);
+            const toNode = RAW_NODES.find(n => n.id === p.edge.to);
+            const p1 = this.toPx(fromNode.nx, fromNode.ny);
+            const p2 = this.toPx(toNode.nx, toNode.ny);
+
+            // 贝塞尔插值点计算
+            const t = p.progress;
+            const midY = (p1.y + p2.y) / 2;
+            const cx = (1 - t) * (1 - t) * p1.x + 2 * (1 - t) * t * p1.x + t * t * p2.x;
+            const cy = (1 - t) * (1 - t) * p1.y + 2 * (1 - t) * t * midY + t * t * p2.y;
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#c86b51'; // 亮色粒子
+            ctx.shadowColor = '#c86b51';
+            ctx.shadowBlur = 8;
+            ctx.fill();
+            ctx.shadowBlur = 0; // 清除阴影
+          }
+        });
+      }
+
+      drawNodes() {
+        const ctx = this.ctx;
+
+        RAW_NODES.forEach(node => {
+          const pos = this.toPx(node.nx, node.ny);
+          const st = this.nodeStates[node.id];
+          const radius = 16 * st.scale;
+
+          ctx.save();
+          ctx.globalAlpha = st.alpha;
+
+          // 绘制外层晕染光圈 (Active Node)
+          if (st.scale > 1.1) {
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, radius + 6, 0, Math.PI * 2);
+            ctx.fillStyle = node.color;
+            ctx.globalAlpha = 0.15 * st.alpha;
+            ctx.fill();
+            ctx.globalAlpha = st.alpha;
+          }
+
+          // 绘制节点主体图形
+          ctx.beginPath();
+          if (node.layer === 'Queue') {
+            // 队列绘制为正方形框
+            ctx.rect(pos.x - radius, pos.y - radius, radius * 2, radius * 2);
+          } else {
+            // Task / Driver 绘制为圆角圆形
+            ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+          }
+          
+          ctx.fillStyle = node.color;
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          // 绘制节点文本 Label
+          ctx.font = '500 11px "DM Mono", monospace';
+          ctx.fillStyle = '#2c2824';
+          ctx.textAlign = 'center';
+          ctx.fillText(node.name, pos.x, pos.y + radius + 14);
+
+          ctx.restore();
+        });
+      }
+    }
+
+    // ==========================================
+    // 6.4 页面加载初始化与 Scroll Reveal
+    // ==========================================
+    document.addEventListener('DOMContentLoaded', () => {
+      // 启动 Canvas 可视化引擎
+      window.engine = new VisualizerEngine('topoCanvas', 'canvas-wrapper');
+
+      // 滚动 Reveal 动画绑定
+      const revealElems = document.querySelectorAll('.reveal-on-scroll');
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+          }
+        });
+      }, { threshold: 0.1 });
+
+      revealElems.forEach(el => observer.observe(el));
+    });
+  </script>
+</body>
+</html>

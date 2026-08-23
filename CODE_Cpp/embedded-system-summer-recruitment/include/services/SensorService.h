@@ -4,6 +4,7 @@
 #include "EnvSensorDriver.h"
 #include "SoilSensorDriver.h"
 #include "OledDisplayDriver.h"
+#include "TaskConfig.h"   // SensorData_t
 
 // 传感器聚合服务: 统一 2s 周期采样 + 数据缓存 + OLED 页面刷新
 // Driver 层负责读硬件, Service 层负责调度(节流)与汇总。
@@ -31,7 +32,12 @@ public:
     float getHumidity() const;
     int getSoilPercent() const;   // 0~100, 未采样返回 -1
 
-    String getSensorsJson() const;   // {"temperature":..,"humidity":..,"soil":..}
+    // 打包一次采样数据快照(短临界区保证三个字段一致性, 避免混合快照)
+    SensorData_t getData() const;
+    // 采样 + 打包一步完成(内部: update() → getData())
+    SensorData_t updateAndGet();
+
+    String getSensorsJson() const;   // {"temperature":..,"humidity":..,"soil":..}, 内部复用 getData()
 };
 
 #endif //EMBEDDED_SYSTEM_SUMMER_RECRUITMENT_SENSOR_SERVICE_H
