@@ -245,6 +245,21 @@
                         document.getElementById("btn-auto").classList.toggle("active", !isManual);
                         document.getElementById("btn-manual").classList.toggle("active", isManual);
                     }
+
+                    // 更新各通道状态(真实状态, 来自设备上报, 覆盖本地乐观更新)
+                    if (data.channels) {
+                        data.channels.forEach(ch => {
+                            const box = document.getElementById("status-" + ch.index);
+                            if (!box) return;
+                            if (ch.status) {
+                                box.textContent = "💧 灌溉运行中";
+                                box.className = "status running";
+                            } else {
+                                box.textContent = "⛔ 灌溉已停止";
+                                box.className = "status stopped";
+                            }
+                        });
+                    }
                 } catch (e) { console.log("JSON 解析失败", e); }
             }
         });
@@ -293,6 +308,12 @@
             return;
         }
         client.publish(MQTT_CONF.topicCmd, JSON.stringify({ mode: mode }));
+
+        // 乐观更新: 立即本地切换显示(实际以设备后续上报为准)
+        let isManual = (mode === "manual");
+        document.getElementById("mode").textContent = isManual ? "🖐 手动" : "🤖 自动";
+        document.getElementById("btn-auto").classList.toggle("active", !isManual);
+        document.getElementById("btn-manual").classList.toggle("active", isManual);
     }
 
     // ===== 初始化 =====

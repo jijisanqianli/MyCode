@@ -11,6 +11,7 @@
 #include "oledTask.h"
 #include "controlTask.h"
 #include "mqttTask.h"
+#include "ConfigService.h"
 
 //GPIO 引脚列表
 static const uint8_t irrigationPins[] = {1, 4, 8};
@@ -20,27 +21,37 @@ static const size_t irrigationPinCount = sizeof(irrigationPins) / sizeof(irrigat
 static const uint8_t DHT_PIN  = 47;  // DHT22 DATA
 static const uint8_t SOIL_PIN = 2;   // HW-390 AO
 
-// ===== MQTT 云端配置(EMQX Cloud Serverless, 填你自己的部署信息) =====
-static const char* MQTT_BROKER     = "i3daab3b.ala.cn-shenzhen.emqxsl.cn";  // 部署详情页连接地址
-static const uint16_t MQTT_PORT    = 8883;                  // MQTT over TLS
+// ===== [阶段B] MQTT 连接配置迁移到 ConfigService(/config.json), 原硬编码保留备查 =====
+// static const char* MQTT_BROKER     = "i3daab3b.ala.cn-shenzhen.emqxsl.cn";
+// static const uint16_t MQTT_PORT    = 8883;
+// static const char* MQTT_USERNAME   = "esp32-s3";
+// static const char* MQTT_PASSWORD   = "123654789";
 static const char* MQTT_CLIENT_ID  = "esp32-s3-irrigation"; // 不能与 MQTTX 里已用的重复
-static const char* MQTT_USERNAME   = "esp32-s3";       // 部署认证用户名
-static const char* MQTT_PASSWORD   = "123654789";       // 部署认证密码
 static const char* MQTT_DEVICE_ID  = "esp32-s3";
 static const char* MQTT_TOPIC_DATA = "garden/esp32-s3/data";   // 数据上报
 static const char* MQTT_TOPIC_CMD  = "garden/esp32-s3/cmd";    // 指令下发
 // =================================================================
 
+// 配置服务(默认值见 ConfigService.h, 启动时读取 /config.json 覆盖)
+ConfigService configService;
+
+// 自动灌溉阈值(运行期变量, 默认 30/60, ConfigService 可覆盖)
+volatile int autoIrrDryThreshold = 30;
+volatile int autoIrrWetThreshold = 60;
+
 IrrigationService irrigationService(irrigationPins, irrigationPinCount);
 OledDisplayDriver oledDisplay;
+// [阶段D] 历史数据服务(30s 降频, 环形缓冲 500 条)
+HistoryService historyService;
 // [任务化] OLED 显示改由 oledTask 驱动, SensorService 不再直接刷屏
 // 原实现(未任务化时): SensorService sensorService(DHT_PIN, SOIL_PIN, 3290, 1057, &oledDisplay);
-SensorService sensorService(DHT_PIN, SOIL_PIN, 3290, 1057, nullptr);
+SensorService sensorService(DHT_PIN, SOIL_PIN, 3290, 1057, nullptr, &historyService);
 
-WebServerController webServerController(80, irrigationService, sensorService);
+WebServerController webServerController(80, irrigationService, sensorService, configService, historyService);
 
 // 注意声明顺序: mqttService 依赖 mqttDriver/sensorService/irrigationService, 必须在其后声明
-MqttDriver mqttDriver(MQTT_BROKER, MQTT_PORT, MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD);
+MqttDriver mqttDriver(configService.mqttBroker.c_str(), configService.mqttPort,
+                      MQTT_CLIENT_ID, configService.mqttUsername.c_str(), configService.mqttPassword.c_str());
 MqttService mqttService(mqttDriver, sensorService, irrigationService,
                         MQTT_DEVICE_ID, MQTT_TOPIC_DATA, MQTT_TOPIC_CMD);
 
@@ -68,6 +79,14 @@ void setup() {
     }
     Serial.println("LittleFS mounted successfully");
 
+    // [阶段B] 读取持久化配置并应用(阈值/默认模式)
+    configService.begin();
+    autoIrrDryThreshold = configService.dryThreshold;
+    autoIrrWetThreshold = configService.wetThreshold;
+    if (configService.defaultMode == "manual") {
+        controlMode = MODE_MANUAL;   // 配置指定默认手动模式
+    }
+
     irrigationService.begin();
     sensorService.begin();
 
@@ -86,11 +105,14 @@ void setup() {
     xTaskCreatePinnedToCore(oledTask, "oled", TASK_STACK_OLED,
                             &oledDisplay, TASK_PRIO_OLED, NULL, TASK_CORE_OLED);
 
-    // 非阻塞发起 WiFi 连接, 立即返回, 连接状态在 loop 心跳中查看
-    connect_wifi_async("SDK","13730708827");
+    // 非阻塞发起 WiFi 连接(SSID/密码来自持久化配置), 立即返回
+    connect_wifi_async(configService.wifiSsid.c_str(), configService.wifiPassword.c_str());
 
     webServerController.begin();
 
+    // [阶段B] 应用持久化配置中的 MQTT 连接参数(配置文件读取后可能覆盖默认值)
+    mqttDriver.setConfig(configService.mqttBroker.c_str(), configService.mqttPort,
+                         configService.mqttUsername.c_str(), configService.mqttPassword.c_str());
     mqttDriver.begin();
     mqttService.begin();   // MQTT 连接在 mqttTask 的 update() 中异步建立
 

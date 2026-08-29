@@ -48,9 +48,9 @@ void sensorTask(void* param) {
         // ④ 自动灌溉判断(AUTO 模式 + 状态变化才发指令)
         if (autoIrrQueue != nullptr && controlMode == MODE_AUTO) {
             bool wantPump = autoPumpState;   // 默认保持现状
-            if (data.soilPercent < AUTO_IRR_DRY_THRESHOLD) {
+            if (data.soilPercent < autoIrrDryThreshold) {
                 wantPump = true;             // 干燥 → 开泵
-            } else if (data.soilPercent > AUTO_IRR_WET_THRESHOLD) {
+            } else if (data.soilPercent > autoIrrWetThreshold) {
                 wantPump = false;            // 湿润 → 关泵
             }
             // 中间区间(DRY~WET): 保持现状, 不发指令

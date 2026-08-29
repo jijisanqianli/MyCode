@@ -2,13 +2,43 @@
 // (头文件在 include/ 子目录时 LDF 不会继续追踪其中的框架库 include)
 #include <WebServer.h>
 #include <LittleFS.h>
+#include <Update.h>
 #include "WebServerController.h"
 #include "IrrigationService.h"
 #include "TaskConfig.h"
 #include <ctype.h>
 
-WebServerController::WebServerController(uint16_t port, IrrigationService& service, SensorService& sensors):
-    server(port), irrigationService(service), sensorService(sensors){}
+// ===== OTA 更新 =====
+// 上传密钥(自行修改): 页面提交时拼到 URL ?key=xxx
+static const char* OTA_KEY = "ota2026";
+
+// OTA 上传页面(内嵌, 无需文件系统文件)
+static const char OTA_PAGE_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32 OTA 更新</title></head>
+<body style="font-family:'Microsoft YaHei',Arial,sans-serif;text-align:center;margin-top:50px;">
+<h2>📡 ESP32 固件更新</h2>
+<p style="color:#888;font-size:13px;">上传 .bin 固件，完成后设备自动重启</p>
+<form method="POST" action="/update" enctype="multipart/form-data" onsubmit="return prepSubmit()">
+  <p><input type="file" name="update" accept=".bin" required></p>
+  <p><input type="password" id="pwd" placeholder="更新密钥" required></p>
+  <p><button type="submit" style="padding:10px 30px;font-size:16px;">上传并更新</button></p>
+</form>
+<p style="color:#c00;font-size:12px;">⚠️ 更新期间请勿断电，失败会自动回滚到旧固件</p>
+<script>
+function prepSubmit() {
+  document.querySelector('form').action = '/update?key=' + document.getElementById('pwd').value;
+  return true;
+}
+</script>
+</body></html>
+)rawliteral";
+
+WebServerController::WebServerController(uint16_t port, IrrigationService& service, SensorService& sensors,
+                                         ConfigService& config, HistoryService& history):
+    server(port), irrigationService(service), sensorService(sensors),
+    configService(config), historyService(history){}
 
 void WebServerController::setupRoutes() {
     // 获取主页
@@ -31,6 +61,61 @@ void WebServerController::setupRoutes() {
         }
         server.streamFile(file, "text/html");
         file.close();
+    });
+
+    // ===== [阶段C] OTA 远程更新 =====
+    // 上传页面
+    server.on("/update", HTTP_GET, [this]() {
+        server.sendHeader("Connection", "close");
+        server.send(200, "text/html", OTA_PAGE_HTML);
+    });
+
+    // 固件上传: 完成回调 + 分块写入回调
+    server.on("/update", HTTP_POST,
+        [this]() {   // 上传完成
+            server.sendHeader("Connection", "close");
+            if (Update.hasError()) {
+                server.send(500, "text/plain", "Update FAILED");
+            } else {
+                server.send(200, "text/plain", "Update OK, rebooting...");
+                delay(500);
+                ESP.restart();
+            }
+        },
+        [this]() {   // 分块接收
+            HTTPUpload& upload = server.upload();
+            if (upload.status == UPLOAD_FILE_START) {
+                // 密钥校验(URL 参数 ?key=xxx)
+                if (server.arg("key") != OTA_KEY) {
+                    Serial.println("[OTA] auth failed");
+                    Update.abort();
+                    return;
+                }
+                Serial.printf("[OTA] Start: %s\n", upload.filename.c_str());
+                if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+                    Update.printError(Serial);
+                }
+            } else if (upload.status == UPLOAD_FILE_WRITE) {
+                if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+                    Update.printError(Serial);
+                }
+            } else if (upload.status == UPLOAD_FILE_END) {
+                if (Update.end(true)) {   // 校验并切换固件
+                    Serial.printf("[OTA] Success: %u bytes\n", upload.totalSize);
+                } else {
+                    Update.printError(Serial);
+                }
+            }
+        }
+    );
+
+    // [阶段D] 历史数据(时间序列, 供前端曲线绘制): /api/history?limit=N
+    server.on("/api/history", HTTP_GET, [this]() {
+        size_t limit = 120;
+        if (server.arg("limit").length() > 0) {
+            limit = server.arg("limit").toInt();
+        }
+        server.send(200, "application/json", historyService.toJson(limit));
     });
 
     // 获取传感器数据(温度/湿度/土壤/模式), 数据由 SensorService 周期采样缓存
@@ -59,6 +144,25 @@ void WebServerController::setupRoutes() {
         server.send(200, "text/plain", "mode switch requested: " + mode);
     });
 
+    // [阶段B] 读取持久化配置(WiFi/MQTT/阈值/默认模式)
+    server.on("/api/config", HTTP_GET, [this]() {
+        server.send(200, "application/json", configService.toJson());
+    });
+
+    // [阶段B] 更新持久化配置(只更新消息中存在的字段), WiFi/MQTT 变更需重启生效
+    server.on("/api/config", HTTP_POST, [this]() {
+        String body = server.arg("plain");
+        if (body.length() == 0) {
+            server.send(400, "text/plain", "empty config body");
+            return;
+        }
+        if (configService.updateFromJson(body)) {
+            server.send(200, "text/plain", "config saved, reboot to apply");
+        } else {
+            server.send(400, "text/plain", "config parse/save failed");
+        }
+    });
+
     // 获取通道列表
     server.on("/irrigation/channels", HTTP_GET, [this]() {
         String json = "[";
@@ -85,11 +189,15 @@ void WebServerController::setupRoutes() {
             server.send(404, "text/plain", "Channel not found");
             return;
         }
-        if (irrigationService.turnOnIrrigation(index)) {
-            server.send(200, "text/plain", String("Irrigation started (channel ") + index + ")");
-        } else {
-            server.send(409, "text/plain", "Channel already running");
+        // [任务化] 控制收敛: 指令发 manualIrrQueue, 由 controlTask 唯一执行
+        Command_t cmd;
+        cmd.index  = (uint8_t)index;
+        cmd.pumpOn = true;
+        cmd.mode   = -1;   // pump 指令 → controlTask 自动切手动模式
+        if (manualIrrQueue != nullptr) {
+            xQueueSend(manualIrrQueue, &cmd, 0);
         }
+        server.send(200, "text/plain", String("Irrigation start requested (channel ") + index + ")");
     });
 
     // 停止指定通道灌溉
@@ -103,11 +211,15 @@ void WebServerController::setupRoutes() {
             server.send(404, "text/plain", "Channel not found");
             return;
         }
-        if (irrigationService.turnOffIrrigation(index)) {
-            server.send(200, "text/plain", String("Irrigation stopped (channel ") + index + ")");
-        } else {
-            server.send(409, "text/plain", "Channel not running");
+        // [任务化] 控制收敛: 指令发 manualIrrQueue, 由 controlTask 唯一执行
+        Command_t cmd;
+        cmd.index  = (uint8_t)index;
+        cmd.pumpOn = false;
+        cmd.mode   = -1;
+        if (manualIrrQueue != nullptr) {
+            xQueueSend(manualIrrQueue, &cmd, 0);
         }
+        server.send(200, "text/plain", String("Irrigation stop requested (channel ") + index + ")");
     });
 
     // 获取状态:无 channel 参数返回全部通道数组,带 channel 参数返回单通道对象

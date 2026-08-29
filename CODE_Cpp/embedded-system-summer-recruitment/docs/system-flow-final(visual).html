@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能灌溉系统 · 高级交互式学术拓扑与数据流动态可视化</title>
+  
+  <!-- 1. Tailwind CSS CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  
+  <!-- 2. Google Fonts (Cormorant Garamond, Noto Serif SC, DM Mono) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,400&family=DM+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <!-- 3. MathJax Config & CDN -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+      }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    :root {
+      --bg-cream: #faf8f4;
+      --card-white: #ffffff;
+      --border-gray: #e8e2d8;
+      --text-main: #2c2824;
+      --text-muted: #6b6560;
+      --text-light: #a09890;
+      --accent-gold: #b89a6a;
+      --accent-green: #4a7c59;
+      --accent-blue: #4a6b82;
+      --accent-red: #c86b51;
+      --accent-purple: #7e6388;
+    }
+
+    body {
+      background-color: var(--bg-cream);
+      background-image: radial-gradient(#e0d8ca 0.8px, transparent 0.8px);
+      background-size: 28px 28px;
+      color: var(--text-main);
+      font-family: 'Noto Serif SC', 'Cormorant Garamond', Georgia, serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .font-mono-code {
+      font-family: 'DM Mono', monospace;
+    }
+
+    .font-serif-title {
+      font-family: 'Cormorant Garamond', 'Noto Serif SC', serif;
+    }
+
+    /* 纸质卡片阴影与边框 */
+    .cream-card {
+      background: var(--card-white);
+      border: 1px solid var(--border-gray);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px -5px rgba(44, 40, 36, 0.03), 0 4px 12px -2px rgba(44, 40, 36, 0.02);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .cream-card:hover {
+      box-shadow: 0 16px 40px -6px rgba(44, 40, 36, 0.06);
+    }
+
+    /* 步骤指示器 Active 拉伸动画 */
+    .step-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background-color: var(--border-gray);
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      cursor: pointer;
+    }
+
+    .step-dot.active {
+      width: 32px;
+      background-color: var(--accent-gold);
+      border-radius: 8px;
+    }
+
+    /* 自定义按钮点击动画 */
+    .btn-cream {
+      background: #ffffff;
+      border: 1px solid var(--border-gray);
+      color: var(--text-main);
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-cream:hover {
+      border-color: var(--accent-gold);
+      color: var(--accent-gold);
+      transform: translateY(-1px);
+    }
+
+    .btn-cream:active {
+      transform: translateY(1px);
+    }
+
+    /* Fade / Reveal 动画 */
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.8s ease, transform 0.8s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-cream);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-gray);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-gold);
+    }
+
+    /* ===== 配置与常量依赖板块 ===== */
+    .cfg-dep { display: flex; flex-direction: column; gap: 12px; }
+    .cfg-source {
+      font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 700; color: #44638f;
+      padding-bottom: 6px; border-bottom: 1px dashed var(--border-gray);
+    }
+    .cfg-row {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 10px 14px; background: #f7f4ec;
+      border-radius: 10px; border: 1px solid var(--border-gray);
+    }
+    .cfg-key    { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 600; color: #9c7a44; }
+    .cfg-arrow  { color: #a09890; font-size: 14px; }
+    .cfg-target { font-family: 'DM Mono', monospace; font-size: 12px; color: #44638f; }
+    .cfg-const  { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 600; color: #4a7c59; }
+    .cfg-note   { font-size: 11px; color: #a09890; font-family: 'DM Mono', monospace; margin-left: 4px; }
+  </style>
+</head>
+<body class="py-8 px-4 sm:px-8 max-w-7xl mx-auto">
+
+  <!-- ==================== HERO HEADER ==================== -->
+  <header class="text-center mb-12 reveal">
+    <div class="flex justify-center gap-3 mb-4 flex-wrap">
+      <span class="font-mono-code text-xs px-3 py-1 rounded-full border" style="background:#faf3e5;color:#9c7a44;border-color:#e3d0a8">
+        Architecture: FreeRTOS Layered
+      </span>
+      <span class="font-mono-code text-xs px-3 py-1 rounded-full border" style="background:#eef3f8;color:#44638f;border-color:#c3d3e6">
+        Protocol: MQTT & HTTP
+      </span>
+      <span class="font-mono-code text-xs px-3 py-1 rounded-full border" style="background:#eef4ea;color:#4f7a3a;border-color:#c6d9b8">
+        Hardware: ESP32-S3 / Dual Core
+      </span>
+    </div>
+    <h1 class="text-4xl sm:text-5xl font-bold font-serif-title tracking-tight text-stone-800 mb-3">
+      智能灌溉系统 · 全局依赖与双向数据流拓扑
+    </h1>
+    <p class="text-base text-stone-600 max-w-3xl mx-auto font-light leading-relaxed">
+      基于学术级分层设计原则（Controller-Service-Driver）与 FreeRTOS 异步消息队列解耦机制。
+      含阶段 A~D 新增模块（状态修复 / 配置持久化 / OTA / 历史可视化），
+      下方可视化引擎直观解构物理采样上行、云端协同与指令响应流。
+    </p>
+    <div class="mt-4 text-xs font-mono-code text-stone-400">
+      $$\text{System State } \mathcal{S}(t) = \langle \mathbf{Tasks}, \mathbf{Queues}, \mathbf{Services}, \mathbf{Drivers} \rangle, \quad T_{\text{sample}} = 2.0\text{s}$$
+    </div>
+  </header>
+
+  <!-- ==================== CORE CONCEPTS ==================== -->
+  <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 reveal">
+    <!-- Card 1 -->
+    <div class="cream-card p-6 border-l-4" style="border-left-color:#b89a6a">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-3 h-3 rounded-full" style="background:#b89a6a"></div>
+        <h3 class="text-lg font-bold text-stone-800">三层解耦架构</h3>
+      </div>
+      <p class="text-xs text-stone-600 leading-relaxed">
+        严格遵循 <span class="font-mono-code text-amber-700">Controller $\to$ Service $\to$ Driver</span> 单向依赖规范。Controller 抽象网络路由，Service 封包核心灌溉算法，Driver 隔离 GPIO/I2C/SPI 底层细节。
+      </p>
+    </div>
+    <!-- Card 2 -->
+    <div class="cream-card p-6 border-l-4" style="border-left-color:#4a7c59">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-3 h-3 rounded-full" style="background:#4a7c59"></div>
+        <h3 class="text-lg font-bold text-stone-800">FreeRTOS 队列通信</h3>
+      </div>
+      <p class="text-xs text-stone-600 leading-relaxed">
+        利用 <span class="font-mono-code text-emerald-700">xQueueSend</span> 与 <span class="font-mono-code text-emerald-700">xQueueReceive</span> 消除多任务临界区竞态。传感器采样与云端通信、硬件控制完全异步化。
+      </p>
+    </div>
+    <!-- Card 3 -->
+    <div class="cream-card p-6 border-l-4" style="border-left-color:#4a6b82">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-3 h-3 rounded-full" style="background:#4a6b82"></div>
+        <h3 class="text-lg font-bold text-stone-800">双向数据链路</h3>
+      </div>
+      <p class="text-xs text-stone-600 leading-relaxed">
+        包含 **数据包上行流**（DHT22/Soil $\to$ OLED / MQTT Telemetry）与 **控制指令下行流**（HTTP / MQTT $\to$ Relay Actuator），具备抢占式仲裁。
+      </p>
+    </div>
+  </section>
+
+  <!-- ==================== MAIN CANVAS INTERACTIVE VISUALIZER ==================== -->
+  <section class="cream-card p-6 mb-12 reveal relative">
+    
+    <!-- Visualizer Header / Controls -->
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 pb-4 border-b border-stone-200">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-amber-600 animate-pulse"></span>
+          <h2 class="text-xl font-bold font-serif-title text-stone-800">交互式系统拓扑与高帧率数据流引擎</h2>
+        </div>
+        <p class="text-xs text-stone-500 font-mono-code mt-0.5">Canvas 2D Engine with Lerp Path Interpolation & Stagger Effects</p>
+      </div>
+
+      <!-- Controls -->
+      <div class="flex items-center gap-3 flex-wrap">
+        <!-- Prev -->
+        <button id="btn-prev" class="btn-cream px-3 py-1.5 rounded-lg text-xs font-mono-code flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          上一步 (Left)
+        </button>
+        <!-- Play / Pause -->
+        <button id="btn-play" class="btn-cream px-4 py-1.5 rounded-lg text-xs font-mono-code border-amber-300 text-amber-800 bg-amber-50/50 flex items-center gap-1.5">
+          <svg id="play-icon" class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          <span id="play-text">自动播放</span>
+        </button>
+        <!-- Next -->
+        <button id="btn-next" class="btn-cream px-3 py-1.5 rounded-lg text-xs font-mono-code flex items-center gap-1">
+          下一步 (Right)
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Canvas Container -->
+    <div class="relative w-full bg-stone-950/5 rounded-xl border border-stone-200/80 overflow-hidden mb-6" style="height: 520px;" id="canvas-wrapper">
+      <canvas id="topo-canvas" class="w-full h-full block cursor-crosshair"></canvas>
+      
+      <!-- Overlay Canvas Legend -->
+      <div class="absolute bottom-3 left-3 bg-white/90 backdrop-blur-md px-3 py-2 rounded-lg border border-stone-200 text-xs font-mono-code flex items-center gap-4 text-stone-600 pointer-events-none">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full" style="background:#b89a6a"></span> Hardware / Driver
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full" style="background:#4a6b82"></span> Service / Ctrl
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full" style="background:#4a7c59"></span> RTOS Queue
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full" style="background:#2c2824"></span> RTOS Task
+        </div>
+      </div>
+    </div>
+
+    <!-- Timeline Dots Stretch Indicator -->
+    <div class="flex justify-center items-center gap-3 mb-6" id="dots-container">
+      <!-- Generated Dynamically -->
+    </div>
+
+    <!-- Dynamic Step Explanation Card (MathJax Enabled) -->
+    <div class="bg-stone-50 rounded-xl p-5 border border-stone-200/80 relative">
+      <div class="flex items-center justify-between mb-2">
+        <span id="step-badge" class="font-mono-code text-xs px-2.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+          Step 1 / 7
+        </span>
+        <span class="text-xs font-mono-code text-stone-400">Press Arrow Keys or Space to Navigate</span>
+      </div>
+      <h3 id="step-title" class="text-xl font-bold font-serif-title text-stone-800 mb-2">
+        全景拓扑与分层架构概览
+      </h3>
+      <div id="step-desc" class="text-sm text-stone-600 leading-relaxed font-serif-title">
+        <!-- MathJax Content injected here -->
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ==================== ARCHITECTURE MATRIX DASHBOARD ==================== -->
+  <section class="mb-12 reveal">
+    <div class="flex items-center gap-3 mb-6">
+      <span class="w-3 h-3 rounded-full" style="background:#2c2824"></span>
+      <h2 class="text-2xl font-bold font-serif-title text-stone-800">FreeRTOS 任务优先级与队列调度矩阵</h2>
+      <span class="font-mono-code text-xs text-stone-400 tracking-wider">SCHEDULING MATRIX</span>
+    </div>
+
+    <div class="cream-card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs font-mono-code border-collapse">
+          <thead>
+            <tr class="bg-stone-100/70 border-b border-stone-200 text-stone-700">
+              <th class="p-4 font-semibold">任务名称 (FreeRTOS Task)</th>
+              <th class="p-4 font-semibold">优先级 (Priority)</th>
+              <th class="p-4 font-semibold">关联队列 (Associated Queue)</th>
+              <th class="p-4 font-semibold">核心调用的 Service / Driver</th>
+              <th class="p-4 font-semibold">调度周期 / 触发机制</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-stone-200 text-stone-600">
+            <tr class="hover:bg-amber-50/30 transition-colors">
+              <td class="p-4 font-bold text-stone-800">sensorTask</td>
+              <td class="p-4 text-emerald-700 font-bold">Priority 2 (中)</td>
+              <td class="p-4 text-amber-700">oledQ, latestDataQ, autoIrrQ</td>
+              <td class="p-4">SensorService $\to$ Env/Soil Driver</td>
+              <td class="p-4">周期性 (2000 ms)</td>
+            </tr>
+            <tr class="hover:bg-amber-50/30 transition-colors">
+              <td class="p-4 font-bold text-stone-800">controlTask</td>
+              <td class="p-4 text-red-600 font-bold">Priority 3 (最高 - 仲裁)</td>
+              <td class="p-4 text-amber-700">manualIrrQueue, autoIrrQueue</td>
+              <td class="p-4">IrrigationService $\to$ IrrigationDriver</td>
+              <td class="p-4">事件阻塞 (QueueSet Wait)</td>
+            </tr>
+            <tr class="hover:bg-amber-50/30 transition-colors">
+              <td class="p-4 font-bold text-stone-800">mqttTask</td>
+              <td class="p-4 text-blue-700 font-bold">Priority 2 (中)</td>
+              <td class="p-4 text-amber-700">latestDataQueue</td>
+              <td class="p-4">MqttService $\to$ MqttDriver</td>
+              <td class="p-4">周期 (5000 ms) / MQTT 收到消息</td>
+            </tr>
+            <tr class="hover:bg-amber-50/30 transition-colors">
+              <td class="p-4 font-bold text-stone-800">oledTask</td>
+              <td class="p-4 text-stone-500">Priority 1 (低)</td>
+              <td class="p-4 text-amber-700">oledQueue</td>
+              <td class="p-4">OledDisplayDriver</td>
+              <td class="p-4">事件阻塞 (Queue Wait)</td>
+            </tr>
+            <tr class="hover:bg-amber-50/30 transition-colors">
+              <td class="p-4 font-bold text-stone-800">loopTask (Web)</td>
+              <td class="p-4 text-stone-500">Priority 1 (低)</td>
+              <td class="p-4 text-amber-700">manualIrrQueue (Push)</td>
+              <td class="p-4">WebServerController $\to$ Sensor/Irr Service</td>
+              <td class="p-4">HTTP 请求异步唤醒</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== CONFIG & CONSTANTS DEPENDENCY ==================== -->
+  <section class="cream-card p-6 mb-12 reveal" style="border-top:4px solid #4a6b82">
+    <div class="flex items-center gap-3 mb-5">
+      <span class="w-3 h-3 rounded-full" style="background:#4a6b82"></span>
+      <h2 class="text-2xl font-bold font-serif-title text-stone-800">配置与常量依赖关系</h2>
+      <span class="font-mono-code text-xs text-stone-400 tracking-wider">CONFIG & CONSTANTS FLOW</span>
+    </div>
+
+    <p class="text-xs text-stone-600 leading-relaxed mb-4">
+      配置/常量<b>从哪定义</b>（来源）→ 经哪些<b>配置项/共享状态</b> → <b>被谁消费</b>（模块）。
+      <b>悬停节点</b>高亮该配置的完整链路，<b>金=来源 · 蓝=配置项 · 紫=编译期常量 · 红=共享状态 · 绿=消费方</b>。
+    </p>
+
+    <!-- 配置依赖动态拓扑 -->
+    <div class="relative w-full rounded-xl border border-stone-200/80 overflow-hidden" style="height:540px; background:#fdfbf7;" id="cfg-wrapper">
+      <canvas id="cfg-canvas" class="w-full h-full block cursor-crosshair"></canvas>
+      <div class="absolute bottom-3 left-3 bg-white/90 backdrop-blur-md px-3 py-2 rounded-lg border border-stone-200 text-xs font-mono-code flex items-center gap-4 text-stone-600 pointer-events-none">
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#b89a6a"></span> 来源</div>
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#4a6b82"></span> 配置项</div>
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#7e6388"></span> 常量</div>
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#c86b51"></span> 共享状态</div>
+        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#4a7c59"></span> 消费方</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== FOOTER ==================== -->
+  <footer class="text-center pt-8 border-t border-stone-200 text-stone-500 text-xs font-mono-code leading-relaxed reveal">
+    <p class="mb-1">Academic Interactive Visualization · Smart Irrigation System Architecture</p>
+    <p class="text-stone-400">Crafted with Canvas 2D Engine, MathJax 3 & Morandi Cream Style Aesthetics</p>
+  </footer>
+
+  <!-- ==================== JAVASCRIPT VISUALIZATION ENGINE ==================== -->
+  <script>
+    // ==========================================
+    // 1. DATA STRUCTURES & TOPOLOGY DEFINITION
+    // ==========================================
+    
+    // 归一化节点位置与层级规范 (x, y in [0.0, 1.0])
+    const NODES = {
+      // Cloud & External Interfaces (x ~ 0.08)
+      web_client:  { id: 'web_client',  name: 'MQTTX / Web 客户端', category: 'Cloud/UI',     x: 0.08, y: 0.22, color: '#c86b51', layer: 'Cloud' },
+      emqx_broker: { id: 'emqx_broker', name: 'EMQX MQTT Broker',   category: 'Cloud/Broker', x: 0.08, y: 0.60, color: '#c86b51', layer: 'Cloud' },
+
+      // Hardware Actuators & Sensors (x ~ 0.24)
+      hw_sensor:   { id: 'hw_sensor',   name: 'DHT22 / HW-390 采样',category: 'Hardware',     x: 0.24, y: 0.18, color: '#b89a6a', layer: 'Hardware' },
+      hw_oled:     { id: 'hw_oled',     name: '0.96" OLED 屏',     category: 'Hardware',     x: 0.24, y: 0.48, color: '#b89a6a', layer: 'Hardware' },
+      hw_actuator: { id: 'hw_actuator', name: '继电器水泵 / LED',   category: 'Hardware',     x: 0.24, y: 0.82, color: '#b89a6a', layer: 'Hardware' },
+      hw_storage:  { id: 'hw_storage',  name: 'LittleFS 配置存储',  category: 'Storage [B]',  x: 0.24, y: 0.66, color: '#b89a6a', layer: 'Hardware' },
+      hw_ota:      { id: 'hw_ota',      name: 'OTA 备用 app 分区',  category: 'Storage [C]',  x: 0.24, y: 0.74, color: '#b89a6a', layer: 'Hardware' },
+
+      // Driver Layer (x ~ 0.40)
+      drv_env:     { id: 'drv_env',     name: 'Env & Soil Driver',  category: 'Driver',       x: 0.40, y: 0.18, color: '#b89a6a', layer: 'Driver' },
+      drv_oled:    { id: 'drv_oled',    name: 'OledDisplay Driver', category: 'Driver',       x: 0.40, y: 0.48, color: '#b89a6a', layer: 'Driver' },
+      drv_mqtt:    { id: 'drv_mqtt',    name: 'Mqtt Driver',        category: 'Driver',       x: 0.40, y: 0.68, color: '#b89a6a', layer: 'Driver' },
+      drv_irr:     { id: 'drv_irr',     name: 'Irrigation Driver',  category: 'Driver',       x: 0.40, y: 0.82, color: '#b89a6a', layer: 'Driver' },
+
+      // Service & Controller Layer (x ~ 0.56)
+      svc_sensor:  { id: 'svc_sensor',  name: 'SensorService',      category: 'Service',      x: 0.56, y: 0.16, color: '#4a6b82', layer: 'Service' },
+      svc_history: { id: 'svc_history', name: 'HistoryService',     category: 'Service [D]',  x: 0.56, y: 0.28, color: '#4a6b82', layer: 'Service' },
+      ctrl_web:    { id: 'ctrl_web',    name: 'WebServerController',category: 'Controller',   x: 0.56, y: 0.40, color: '#7e6388', layer: 'Controller' },
+      svc_config:  { id: 'svc_config',  name: 'ConfigService',      category: 'Service [B]',  x: 0.56, y: 0.54, color: '#4a6b82', layer: 'Service' },
+      svc_mqtt:    { id: 'svc_mqtt',    name: 'MqttService',        category: 'Service',      x: 0.56, y: 0.68, color: '#4a6b82', layer: 'Service' },
+      svc_irr:     { id: 'svc_irr',     name: 'IrrigationService',  category: 'Service',      x: 0.56, y: 0.82, color: '#4a6b82', layer: 'Service' },
+
+      // FreeRTOS Queues (x ~ 0.73)
+      q_oled:      { id: 'q_oled',      name: 'oledQueue',          category: 'Queue',        x: 0.73, y: 0.26, color: '#4a7c59', layer: 'Queue' },
+      q_data:      { id: 'q_data',      name: 'latestDataQueue',    category: 'Queue',        x: 0.73, y: 0.45, color: '#4a7c59', layer: 'Queue' },
+      q_auto:      { id: 'q_auto',      name: 'autoIrrQueue',       category: 'Queue',        x: 0.73, y: 0.65, color: '#4a7c59', layer: 'Queue' },
+      q_manual:    { id: 'q_manual',    name: 'manualIrrQueue',     category: 'Queue',        x: 0.73, y: 0.84, color: '#4a7c59', layer: 'Queue' },
+
+      // FreeRTOS Tasks (x ~ 0.90)
+      t_sensor:    { id: 't_sensor',    name: 'sensorTask',         category: 'Task',         x: 0.90, y: 0.18, color: '#2c2824', layer: 'Task' },
+      t_oled:      { id: 't_oled',      name: 'oledTask',           category: 'Task',         x: 0.90, y: 0.35, color: '#2c2824', layer: 'Task' },
+      t_mqtt:      { id: 't_mqtt',      name: 'mqttTask',           category: 'Task',         x: 0.90, y: 0.55, color: '#2c2824', layer: 'Task' },
+      t_control:   { id: 't_control',   name: 'controlTask',        category: 'Task',         x: 0.90, y: 0.75, color: '#2c2824', layer: 'Task' },
+      t_web:       { id: 't_web',       name: 'loopTask (Web)',     category: 'Task',         x: 0.90, y: 0.90, color: '#2c2824', layer: 'Task' }
+    };
+
+    // 系统拓扑拓扑连接关系定义
+    const CONNECTIONS = [
+      // Data Upstream Path
+      { id: 'c_hw_drv_env', from: 'hw_sensor',   to: 'drv_env',    type: 'data' },
+      { id: 'c_drv_svc_env', from: 'drv_env',     to: 'svc_sensor', type: 'data' },
+      { id: 'c_svc_task_sen',from: 'svc_sensor',  to: 't_sensor',   type: 'data' },
+      { id: 'c_task_q_oled', from: 't_sensor',    to: 'q_oled',     type: 'data' },
+      { id: 'c_task_q_data', from: 't_sensor',    to: 'q_data',     type: 'data' },
+      { id: 'c_task_q_auto', from: 't_sensor',    to: 'q_auto',     type: 'data' },
+      { id: 'c_q_t_oled',    from: 'q_oled',      to: 't_oled',     type: 'data' },
+      { id: 'c_t_drv_oled',  from: 't_oled',      to: 'drv_oled',   type: 'data' },
+      { id: 'c_drv_hw_oled', from: 'drv_oled',    to: 'hw_oled',    type: 'data' },
+      { id: 'c_q_t_mqtt',    from: 'q_data',      to: 't_mqtt',     type: 'data' },
+      { id: 'c_t_svc_mqtt',  from: 't_mqtt',      to: 'svc_mqtt',   type: 'data' },
+      { id: 'c_svc_drv_mqtt',from: 'svc_mqtt',    to: 'drv_mqtt',   type: 'data' },
+      { id: 'c_drv_emqx',    from: 'drv_mqtt',    to: 'emqx_broker',type: 'data' },
+      { id: 'c_emqx_web',    from: 'emqx_broker', to: 'web_client', type: 'data' },
+
+      // [阶段B/D] 配置持久化与历史可视化流
+      { id: 'c_svc_sensor_hist', from: 'svc_sensor',   to: 'svc_history', type: 'data' },
+      { id: 'c_svc_hist_web',    from: 'svc_history',  to: 'ctrl_web',    type: 'data' },
+      { id: 'c_config_storage',  from: 'svc_config',   to: 'hw_storage',  type: 'data' },
+      { id: 'c_web_config',      from: 'ctrl_web',     to: 'svc_config',  type: 'data' },
+      { id: 'c_svc_mqtt_irr',    from: 'svc_mqtt',     to: 'svc_irr',     type: 'data' },
+      { id: 'c_web_ota',         from: 'ctrl_web',     to: 'hw_ota',      type: 'cmd' },
+      // WebServerController → 网页客户端 (HTTP 响应: 传感器/历史图表/配置数据)
+      { id: 'c_web_data',        from: 'ctrl_web',     to: 'web_client',  type: 'data' },
+
+      // Command Downstream Path
+      { id: 'c_web_ctrl',    from: 'web_client',  to: 'ctrl_web',   type: 'cmd' },
+      { id: 'c_web_emqx',    from: 'web_client',  to: 'emqx_broker',type: 'cmd' },
+      { id: 'c_emqx_drv',    from: 'emqx_broker', to: 'drv_mqtt',   type: 'cmd' },
+      { id: 'c_drv_svc_m',   from: 'drv_mqtt',    to: 'svc_mqtt',   type: 'cmd' },
+      { id: 'c_svc_q_man',   from: 'svc_mqtt',    to: 'q_manual',   type: 'cmd' },
+      { id: 'c_ctrl_q_man',  from: 'ctrl_web',    to: 'q_manual',   type: 'cmd' },
+      { id: 'c_q_t_ctrl_m',  from: 'q_manual',    to: 't_control',  type: 'cmd' },
+      { id: 'c_q_t_ctrl_a',  from: 'q_auto',      to: 't_control',  type: 'cmd' },
+      { id: 'c_t_svc_irr',   from: 't_control',   to: 'svc_irr',    type: 'cmd' },
+      { id: 'c_svc_drv_irr', from: 'svc_irr',     to: 'drv_irr',    type: 'cmd' },
+      { id: 'c_drv_hw_act',  from: 'drv_irr',     to: 'hw_actuator',type: 'cmd' }
+    ];
+
+    // 交互式步骤状态定义 (STEPS State Machine)
+    const STEPS = [
+      {
+        step: 0,
+        title: "全景拓扑与分层架构概览",
+        badge: "Step 1 / 7 · Global Overview",
+        desc: "系统严格遵循模块化分层设计。自底向上分为 <b>Hardware</b> $\\to$ <b>Driver</b> $\\to$ <b>Service/Controller</b> $\\to$ <b>FreeRTOS Queue</b> $\\to$ <b>FreeRTOS Task</b>。模块间通过传递 C 结构体句柄进行无锁通信，彻底避免多核竞态条件。<br>$$\\mathbf{Architecture} = \\text{Controller} \\otimes \\text{Service} \\otimes \\text{Driver} + \\sum \\text{Queue}_{i}$$",
+        activeNodes: Object.keys(NODES),
+        activeConns: CONNECTIONS.map(c => c.id)
+      },
+      {
+        step: 1,
+        title: "传感器数据采集与上行解析 (Sensor Ingestion & History)",
+        badge: "Step 2 / 7 · Data Ingestion & History",
+        desc: "<code>sensorTask</code> 任务每 $T_{\\text{sample}} = 2.0\\text{s}$ 被唤醒一次，调用 <code>SensorService::updateAndGet()</code>（内部先采样、再以短临界区打包为完整结构体）。业务层依赖底层 <code>EnvSensorDriver</code> (DHT22) 与 <code>SoilSensorDriver</code> (HW-390) 采集物理电信号并转译为标准化 C 结构体 <code>SensorData_t</code>。<br>[阶段D] 同时每次采样写入 <code>HistoryService</code>（环形缓冲 2000 条 ≈ 66 分钟），供网页 <code>/api/history</code> 用 Chart.js 绘制曲线。<br>$$D_{\\text{env}} = \\langle \\text{Temp}, \\text{Humidity}, \\text{SoilMoisture} \\rangle, \\quad Q_{\\text{history}}\\to\\text{Chart.js}$$",
+        activeNodes: ['hw_sensor', 'drv_env', 'svc_sensor', 't_sensor', 'svc_history', 'ctrl_web'],
+        activeConns: ['c_hw_drv_env', 'c_drv_svc_env', 'c_svc_task_sen', 'c_svc_sensor_hist', 'c_svc_hist_web']
+      },
+      {
+        step: 2,
+        title: "FreeRTOS 队列分发与本地 OLED 刷新",
+        badge: "Step 3 / 7 · Queue Dispatch",
+        desc: "<code>sensorTask</code> 采样打包完成后，将 <code>SensorData_t</code> 无锁复制推入 <code>oledQueue</code> 与 <code>latestDataQueue</code>（容量 1 + <code>xQueueOverwrite</code>，始终保留最新值）；<code>autoIrrQueue</code> 仅在 <b>AUTO 模式且状态变化</b>时才发指令（阈值判断在数据生产方，避免每次采样都唤醒控制任务）。<br><code>oledTask</code> 阻塞等待在 <code>oledQueue</code> 上，一旦收到新数据即唤醒并调用 <code>OledDisplayDriver</code> 驱动 0.96 寸 SSD1306 屏幕更新 UI。<br>$$Q_{\\text{oled}} \\leftarrow D_{\\text{env}}, \\quad P(\\text{oledTask}) = 1$$",
+        activeNodes: ['t_sensor', 'q_oled', 'q_data', 'q_auto', 't_oled', 'drv_oled', 'hw_oled'],
+        activeConns: ['c_task_q_oled', 'c_task_q_data', 'c_task_q_auto', 'c_q_t_oled', 'c_t_drv_oled', 'c_drv_hw_oled']
+      },
+      {
+        step: 3,
+        title: "云端 MQTT 状态遥测上报 (Telemetry Upload)",
+        badge: "Step 4 / 7 · MQTT Telemetry",
+        desc: "<code>mqttTask</code> 任务用 <code>xQueuePeek</code> 从 <code>latestDataQueue</code> 偷看最新采样（不消费），调用 <code>MqttService</code> 将其格式化为 JSON Payload（含 <code>mode</code> 模式字段与 <code>channels</code> 各通道真实状态数组），再由 <code>MqttDriver</code> 经 TCP/IP 栈发布至 EMQX Broker，最终推送给 <code>MQTTX / Web 客户端</code>（页面状态实时推送）。<br>$$\\text{Publish}\\left(\\mathtt{\"garden/esp32-s3/data\"}, \\text{JSON}(D_{\\text{env}}, \\text{mode}, \\mathbf{channels})\\right)$$",
+        activeNodes: ['q_data', 't_mqtt', 'svc_mqtt', 'drv_mqtt', 'emqx_broker', 'web_client'],
+        activeConns: ['c_q_t_mqtt', 'c_t_svc_mqtt', 'c_svc_drv_mqtt', 'c_drv_emqx', 'c_emqx_web']
+      },
+      {
+        step: 4,
+        title: "云端 / Web 指令异步下发 (Command Downstream)",
+        badge: "Step 5 / 7 · Downstream Cmd",
+        desc: "用户在前端界面点击水泵开关或调整模式。控制指令经由两条路径下发：<br>1) <b>HTTP 路径：</b> 提交至 <code>WebServerController</code> (POST 请求)；<br>2) <b>MQTT 路径：</b> EMQX 下发 MQTT Msg 到 <code>MqttService</code>。<br>两路指令（<code>pump</code> 开关 / <code>mode</code> 切换）最终均统一打包写入 <code>manualIrrQueue</code> 队列中。<br>$$Q_{\\text{manual}} \\leftarrow \\text{Cmd}_{\\text{downstream}} \\in \\{\\mathtt{PUMP\\_ON}, \\mathtt{PUMP\\_OFF}, \\mathtt{MODE\\_AUTO}, \\mathtt{MODE\\_MANUAL}\\}$$",
+        activeNodes: ['web_client', 'emqx_broker', 'ctrl_web', 'drv_mqtt', 'svc_mqtt', 'q_manual'],
+        activeConns: ['c_web_ctrl', 'c_web_emqx', 'c_emqx_drv', 'c_drv_svc_m', 'c_svc_q_man', 'c_ctrl_q_man']
+      },
+      {
+        step: 5,
+        title: "控制任务仲裁与继电器/水泵硬件执行",
+        badge: "Step 6 / 7 · Execution & Actuation",
+        desc: "<code>controlTask</code> 拥有最高优先级 $P=3$，充当硬件执行的<b>唯一仲裁者</b>。它通过<b>队列集</b>同时阻塞等待 <code>manualIrrQueue</code>（手动指令）与 <code>autoIrrQueue</code>（自动灌溉指令，阈值判断已在 sensorTask 完成）。<br>模式状态机：任何 <code>pump</code> 指令执行后<b>自动切换为手动模式</b>，回到自动需显式 <code>{\"mode\":\"auto\"}</code>；AUTO 模式才响应自动灌溉。<br>执行时调用 <code>IrrigationService</code> $\\to$ <code>IrrigationDriver</code> 触发 GPIO 拉高，驱动水泵继电器吸合与 LED 状态灯点亮。<br>$$\\text{QueueSet}\\{Q_{\\text{manual}}, Q_{\\text{auto}}\\}, \\quad \\text{GPIO}_{\\text{relay}} \\to \\mathtt{HIGH}$$",
+        activeNodes: ['q_manual', 'q_auto', 't_control', 'svc_irr', 'drv_irr', 'hw_actuator'],
+        activeConns: ['c_q_t_ctrl_m', 'c_q_t_ctrl_a', 'c_t_svc_irr', 'c_svc_drv_irr', 'c_drv_hw_act']
+      },
+      {
+        step: 6,
+        title: "配置持久化 · 历史信息读取 · OTA 远程更新",
+        badge: "Step 7 / 7 · Config & OTA",
+        desc: "[阶段B] <code>ConfigService</code> 读写 LittleFS <code>/config.json</code>（WiFi/MQTT/阈值/默认模式, 启动时应用, 网页 <code>GET/POST /api/config</code> 在线修改）；<br>[数据回传 · 网页展示] 网页经 <code>GET /api/history</code> 从 <code>WebServerController</code> 读取历史采样, 渲染为 Chart.js 曲线（<code>WebServer</code> → 网页客户端数据流, 每 10s 刷新）；<br>[阶段C] 网页 <code>/update</code> 上传 .bin 固件, <code>Update</code> 库写入<b>备用 app 分区</b>（A/B 双分区, 密钥校验, 失败自动回滚）, 校验后自动重启切换。<br>$$\\text{Config}\\leftrightarrow\\text{LittleFS},\\quad Q_{\\text{history}}\\to\\text{Chart.js},\\quad \\text{App}_0\\leftrightarrow\\text{App}_1$$",
+        activeNodes: ['svc_config', 'hw_storage', 'ctrl_web', 'hw_ota', 'web_client'],
+        activeConns: ['c_config_storage', 'c_web_config', 'c_web_ota', 'c_web_data']
+      }
+    ];
+
+    // ==========================================
+    // 2. CANVAS VISUALIZATION ENGINE (RETINA POLYFILL)
+    // ==========================================
+    
+    let currentStepIndex = 0;
+    let isPlaying = false;
+    let playTimer = null;
+    let animFrameId = null;
+
+    const canvas = document.getElementById('topo-canvas');
+    const ctx = canvas.getContext('2d');
+    const wrapper = document.getElementById('canvas-wrapper');
+
+    // Particle Animation Array
+    let particles = [];
+    const PARTICLE_COUNT = 45;
+
+    // Initialize Canvas Retina Resizing
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = wrapper.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+      return { width: rect.width, height: rect.height };
+    }
+
+    // Cubic Bezier Lerp Function
+    function getBezierPoint(p0, p1, p2, p3, t) {
+      const cx = 3 * (p1.x - p0.x);
+      const bx = 3 * (p2.x - p1.x) - cx;
+      const ax = p3.x - p0.x - cx - bx;
+
+      const cy = 3 * (p1.y - p0.y);
+      const by = 3 * (p2.y - p1.y) - cy;
+      const ay = p3.y - p0.y - cy - by;
+
+      const xt = ax * Math.pow(t, 3) + bx * Math.pow(t, 2) + cx * t + p0.x;
+      const yt = ay * Math.pow(t, 3) + by * Math.pow(t, 2) + cy * t + p0.y;
+
+      return { x: xt, y: yt };
+    }
+
+    // Generate Particles Along Active Connections
+    function initParticles() {
+      particles = [];
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        particles.push({
+          connectionIndex: i % CONNECTIONS.length,
+          t: Math.random(),
+          speed: 0.003 + Math.random() * 0.004,
+          size: 2.5 + Math.random() * 2
+        });
+      }
+    }
+
+    // Main Draw Render Loop
+    function render() {
+      const rect = wrapper.getBoundingClientRect();
+      const W = rect.width;
+      const H = rect.height;
+
+      ctx.clearRect(0, 0, W, H);
+
+      const currentStep = STEPS[currentStepIndex];
+      const activeNodeSet = new Set(currentStep.activeNodes);
+      const activeConnSet = new Set(currentStep.activeConns);
+
+      // 1. Draw Connections (Bezier Curves)
+      CONNECTIONS.forEach((conn) => {
+        const fromNode = NODES[conn.from];
+        const toNode = NODES[conn.to];
+
+        const x1 = fromNode.x * W;
+        const y1 = fromNode.y * H;
+        const x2 = toNode.x * W;
+        const y2 = toNode.y * H;
+
+        // Control points for smooth organic curve
+        const dx = x2 - x1;
+        const cp1 = { x: x1 + dx * 0.45, y: y1 };
+        const cp2 = { x: x1 + dx * 0.55, y: y2 };
+
+        const isActive = activeConnSet.has(conn.id);
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, x2, y2);
+
+        if (isActive) {
+          ctx.strokeStyle = conn.type === 'cmd' ? '#c86b51' : '#b89a6a';
+          ctx.lineWidth = 2.2;
+          ctx.shadowColor = conn.type === 'cmd' ? 'rgba(200, 107, 81, 0.4)' : 'rgba(184, 154, 106, 0.4)';
+          ctx.shadowBlur = 6;
+        } else {
+          ctx.strokeStyle = '#e0d8ca';
+          ctx.lineWidth = 1.0;
+          ctx.shadowBlur = 0;
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0; // reset
+      });
+
+      // 2. Animated Particles Movement
+      particles.forEach((p, idx) => {
+        p.connectionIndex = idx % CONNECTIONS.length;
+        const conn = CONNECTIONS[p.connectionIndex];
+
+        if (activeConnSet.has(conn.id)) {
+          p.t += p.speed;
+          if (p.t > 1) p.t = 0;
+
+          const fromNode = NODES[conn.from];
+          const toNode = NODES[conn.to];
+
+          const p0 = { x: fromNode.x * W, y: fromNode.y * H };
+          const p3 = { x: toNode.x * W, y: toNode.y * H };
+          const dx = p3.x - p0.x;
+          const p1 = { x: p0.x + dx * 0.45, y: p0.y };
+          const p2 = { x: p0.x + dx * 0.55, y: p3.y };
+
+          const pos = getBezierPoint(p0, p1, p2, p3, p.t);
+
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = conn.type === 'cmd' ? '#c86b51' : '#4a7c59';
+          ctx.shadowColor = ctx.fillStyle;
+          ctx.shadowBlur = 8;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      });
+
+      // 3. Draw Nodes (Cards/Chips)
+      Object.keys(NODES).forEach((key) => {
+        const node = NODES[key];
+        const nx = node.x * W;
+        const ny = node.y * H;
+        const isActive = activeNodeSet.has(node.id);
+
+        const cardW = 125;
+        const cardH = 34;
+        const rx = nx - cardW / 2;
+        const ry = ny - cardH / 2;
+
+        // Active Glowing Halo
+        if (isActive) {
+          ctx.beginPath();
+          ctx.roundRect(rx - 3, ry - 3, cardW + 6, cardH + 6, 10);
+          ctx.fillStyle = 'rgba(184, 154, 106, 0.15)';
+          ctx.fill();
+        }
+
+        // Node Background Box
+        ctx.beginPath();
+        ctx.roundRect(rx, ry, cardW, cardH, 8);
+        ctx.fillStyle = isActive ? '#ffffff' : '#f5f2ec';
+        ctx.strokeStyle = isActive ? node.color : '#e0d8ca';
+        ctx.lineWidth = isActive ? 1.8 : 1.0;
+        ctx.shadowColor = isActive ? 'rgba(44, 40, 36, 0.08)' : 'transparent';
+        ctx.shadowBlur = isActive ? 10 : 0;
+        ctx.shadowOffsetY = isActive ? 3 : 0;
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0; // reset
+
+        // Left Category Color Pill
+        ctx.beginPath();
+        ctx.roundRect(rx + 5, ry + 6, 4, cardH - 12, 2);
+        ctx.fillStyle = isActive ? node.color : '#a09890';
+        ctx.fill();
+
+        // Node Title Text
+        ctx.font = isActive ? '600 11px "DM Mono", monospace' : '400 11px "DM Mono", monospace';
+        ctx.fillStyle = isActive ? '#2c2824' : '#a09890';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(node.name, rx + 14, ry + cardH / 2 + 0.5);
+      });
+
+      animFrameId = requestAnimationFrame(render);
+    }
+
+    // ==========================================
+    // 3. UI CONTROLLER & STEP INDICATORS
+    // ==========================================
+    
+    function updateStepUI(stepIdx) {
+      currentStepIndex = stepIdx;
+      const s = STEPS[stepIdx];
+
+      // Update Header & Badge
+      document.getElementById('step-badge').innerText = s.badge;
+      document.getElementById('step-title').innerText = s.title;
+
+      // Dynamic MathJax Typeset Render
+      const descEl = document.getElementById('step-desc');
+      descEl.innerHTML = s.desc;
+
+      if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise([descEl]).catch((err) => console.log('MathJax error:', err));
+      }
+
+      // Update Timeline Dots with Active Stretch
+      const dotsContainer = document.getElementById('dots-container');
+      dotsContainer.innerHTML = '';
+      STEPS.forEach((st, i) => {
+        const dot = document.createElement('div');
+        dot.className = `step-dot ${i === stepIdx ? 'active' : ''}`;
+        dot.title = st.title;
+        dot.addEventListener('click', () => {
+          pauseAutoPlay();
+          updateStepUI(i);
+        });
+        dotsContainer.appendChild(dot);
+      });
+    }
+
+    function nextStep() {
+      const nextIdx = (currentStepIndex + 1) % STEPS.length;
+      updateStepUI(nextIdx);
+    }
+
+    function prevStep() {
+      const prevIdx = (currentStepIndex - 1 + STEPS.length) % STEPS.length;
+      updateStepUI(prevIdx);
+    }
+
+    function toggleAutoPlay() {
+      if (isPlaying) {
+        pauseAutoPlay();
+      } else {
+        startAutoPlay();
+      }
+    }
+
+    function startAutoPlay() {
+      isPlaying = true;
+      document.getElementById('play-text').innerText = '暂停播放';
+      document.getElementById('play-icon').innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+      playTimer = setInterval(nextStep, 4500);
+    }
+
+    function pauseAutoPlay() {
+      isPlaying = false;
+      document.getElementById('play-text').innerText = '自动播放';
+      document.getElementById('play-icon').innerHTML = '<path d="M8 5v14l11-7z"/>';
+      if (playTimer) clearInterval(playTimer);
+    }
+
+    // Keyboard Shortcuts Navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') {
+        pauseAutoPlay();
+        nextStep();
+      } else if (e.key === 'ArrowLeft') {
+        pauseAutoPlay();
+        prevStep();
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        toggleAutoPlay();
+      }
+    });
+
+    // Reveal Animation on Scroll (Intersection Observer)
+    function initScrollReveal() {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+          }
+        });
+      }, { threshold: 0.1 });
+
+      document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
+    }
+
+    // ==========================================
+    // 配置与常量依赖 · 动态拓扑引擎 (Config Flow)
+    // ==========================================
+    const CFG_NODES = {
+      src_cfg:   { name: 'ConfigService',     layer: '来源 · 运行期', x: 0.11, y: 0.20, color: '#b89a6a' },
+      src_task:  { name: 'TaskConfig.h',      layer: '来源 · 编译期', x: 0.11, y: 0.58, color: '#b89a6a' },
+      src_main:  { name: 'main.cpp',          layer: '来源 · 组装',   x: 0.11, y: 0.88, color: '#b89a6a' },
+
+      k_wifi:    { name: 'wifiSsid/Password',     layer: '配置', x: 0.40, y: 0.12, color: '#4a6b82' },
+      k_mqtt:    { name: 'mqttBroker/Port/...',   layer: '配置', x: 0.40, y: 0.24, color: '#4a6b82' },
+      k_thres:   { name: 'dry/wetThreshold',      layer: '配置', x: 0.40, y: 0.36, color: '#4a6b82' },
+      k_mode:    { name: 'defaultMode',           layer: '配置', x: 0.40, y: 0.48, color: '#4a6b82' },
+      k_task:    { name: 'TASK_PRIO/CORE/STACK',  layer: '常量', x: 0.40, y: 0.60, color: '#7e6388' },
+      k_period:  { name: 'TASK_PERIOD_*',         layer: '常量', x: 0.40, y: 0.72, color: '#7e6388' },
+      k_modc:    { name: 'MODE_AUTO/MANUAL',      layer: '常量', x: 0.40, y: 0.84, color: '#7e6388' },
+      k_topic:   { name: 'MQTT_TOPIC_*',          layer: '常量', x: 0.40, y: 0.94, color: '#7e6388' },
+      k_ctrlmode: { name: 'controlMode 定义(AUTO)',  layer: '共享状态 [m]', x: 0.63, y: 0.24, color: '#c86b51' },
+      k_irrvar:    { name: 'autoIrr* 定义(30/60)',   layer: '共享状态 [m]', x: 0.63, y: 0.38, color: '#c86b51' },
+      k_mqttconst: { name: 'CLIENT_ID/DEVICE_ID/TOPIC', layer: '常量 [m]', x: 0.63, y: 0.52, color: '#7e6388' },
+      k_qhandle:   { name: 'Queue 句柄定义',         layer: '共享 [m]',     x: 0.63, y: 0.66, color: '#7e6388' },
+
+      t_wifi:    { name: 'WiFi 连接',         layer: '消费方', x: 0.89, y: 0.12, color: '#4a7c59' },
+      t_mqttd:   { name: 'MqttDriver',        layer: '消费方', x: 0.89, y: 0.24, color: '#4a7c59' },
+      t_sensor:  { name: 'sensorTask',        layer: '消费方', x: 0.89, y: 0.36, color: '#4a7c59' },
+      t_control: { name: 'controlTask',       layer: '消费方', x: 0.89, y: 0.48, color: '#4a7c59' },
+      t_mqtts:   { name: 'MqttService',       layer: '消费方', x: 0.89, y: 0.60, color: '#4a7c59' },
+      t_web:     { name: 'WebServerController',layer: '消费方', x: 0.89, y: 0.72, color: '#4a7c59' },
+      t_create:  { name: 'xTaskCreate × 5',   layer: '消费方', x: 0.89, y: 0.84, color: '#4a7c59' },
+      t_mqttt:   { name: 'mqttTask(周期)',    layer: '消费方', x: 0.89, y: 0.94, color: '#4a7c59' }
+    };
+
+    const CFG_EDGES = [
+      { from: 'src_cfg',   to: 'k_wifi' }, { from: 'src_cfg',   to: 'k_mqtt' },
+      { from: 'src_cfg',   to: 'k_thres' },{ from: 'src_cfg',   to: 'k_mode' },
+      { from: 'src_task',  to: 'k_task' }, { from: 'src_task',  to: 'k_period' },
+      { from: 'src_task',  to: 'k_modc' }, { from: 'src_task',  to: 'k_topic' },
+      // main.cpp 具体配置量
+      { from: 'src_main',  to: 'k_ctrlmode' }, { from: 'src_main',  to: 'k_irrvar' },
+      { from: 'src_main',  to: 'k_mqttconst' }, { from: 'src_main', to: 'k_qhandle' },
+      // 配置 → 共享变量
+      { from: 'k_thres',   to: 'k_irrvar' },
+      { from: 'k_mode',    to: 'k_ctrlmode' },
+      // 共享变量/常量 → 消费方
+      { from: 'k_irrvar',  to: 't_sensor' },
+      { from: 'k_ctrlmode',to: 't_control' },
+      { from: 'k_ctrlmode',to: 't_mqtts' },
+      { from: 'k_ctrlmode',to: 't_web' },
+      { from: 'k_mqttconst',to: 't_mqttd' },
+      { from: 'k_mqttconst',to: 't_mqtts' },
+      { from: 'k_qhandle', to: 't_control' },
+      // 配置/常量 → 消费方
+      { from: 'k_wifi',    to: 't_wifi' },
+      { from: 'k_mqtt',    to: 't_mqttd' },
+      { from: 'k_modc',    to: 't_control' },
+      { from: 'k_modc',    to: 't_mqtts' },
+      { from: 'k_modc',    to: 't_web' },
+      { from: 'k_topic',   to: 't_mqtts' },
+      { from: 'k_task',    to: 't_create' },
+      { from: 'k_period',  to: 't_sensor' },
+      { from: 'k_period',  to: 't_mqttt' }
+    ];
+
+    class ConfigFlowEngine {
+      constructor(canvasId, wrapperId) {
+        // 工具: hex → rgba (节点色浅底/柔和)
+        window.hexToRgba = (hex, a) => {
+          const r = parseInt(hex.slice(1, 3), 16);
+          const g = parseInt(hex.slice(3, 5), 16);
+          const b = parseInt(hex.slice(5, 7), 16);
+          return `rgba(${r},${g},${b},${a})`;
+        };
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+        this.wrapper = document.getElementById(wrapperId);
+        this.hovered = null;
+        this.particles = [];
+        for (let i = 0; i < CFG_EDGES.length; i++) {
+          this.particles.push({ edge: i, t: Math.random(), speed: 0.004 + Math.random() * 0.004 });
+        }
+        this.tooltip = document.createElement('div');
+        this.tooltip.style.cssText = 'position:absolute;pointer-events:none;opacity:0;transition:opacity .2s;background:rgba(44,40,36,.92);color:#faf8f4;padding:8px 14px;border-radius:8px;font-size:12px;font-family:DM Mono,monospace;z-index:50;';
+        this.wrapper.appendChild(this.tooltip);
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        this.canvas.addEventListener('mousemove', (e) => this.onMove(e));
+        requestAnimationFrame(() => this.render());
+      }
+
+      resize() {
+        const dpr = window.devicePixelRatio || 1;
+        const r = this.wrapper.getBoundingClientRect();
+        this.w = r.width; this.h = r.height;
+        this.canvas.width = this.w * dpr;
+        this.canvas.height = this.h * dpr;
+        this.ctx.scale(dpr, dpr);
+      }
+
+      onMove(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        let hit = null;
+        for (const key in CFG_NODES) {
+          const n = CFG_NODES[key];
+          if (Math.hypot(n.x * this.w - mx, n.y * this.h - my) < 24) { hit = key; break; }
+        }
+        this.hovered = hit;
+        if (hit) {
+          const n = CFG_NODES[hit];
+          this.tooltip.style.opacity = '1';
+          this.tooltip.style.transform = `translate(${mx + 14}px, ${my + 10}px)`;
+          this.tooltip.innerHTML = `<b style="color:#fcd34d">${n.name}</b><br><span style="color:#cbd5e1">${n.layer}</span>`;
+        } else {
+          this.tooltip.style.opacity = '0';
+        }
+      }
+
+      render() {
+        const W = this.w, H = this.h, ctx = this.ctx;
+        ctx.clearRect(0, 0, W, H);
+
+        const linked = new Set();
+        if (this.hovered) {
+          CFG_EDGES.forEach((ed, i) => {
+            if (ed.from === this.hovered || ed.to === this.hovered) linked.add(i);
+          });
+        }
+
+        // 连线
+        CFG_EDGES.forEach((ed, i) => {
+          const a = CFG_NODES[ed.from], b = CFG_NODES[ed.to];
+          const x1 = a.x * W, y1 = a.y * H, x2 = b.x * W, y2 = b.y * H;
+          const dx = x2 - x1;
+          const active = linked.has(i);
+          // 边默认继承【来源节点】颜色(金=来源下发 / 蓝=配置 / 紫=常量 / 红=共享), 非激活时柔和透明
+          const edgeColor = CFG_NODES[ed.from].color;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.bezierCurveTo(x1 + dx * 0.45, y1, x1 + dx * 0.55, y2, x2, y2);
+          ctx.globalAlpha = active ? 1 : 0.5;
+          ctx.strokeStyle = active ? '#b89a6a' : edgeColor;
+          ctx.lineWidth = active ? 2.4 : 1.4;
+          ctx.shadowColor = active ? 'rgba(184,154,106,.45)' : 'transparent';
+          ctx.shadowBlur = active ? 6 : 0;
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+          ctx.globalAlpha = 1;
+        });
+
+        // 粒子流
+        this.particles.forEach((p) => {
+          p.t += p.speed;
+          if (p.t > 1) p.t = 0;
+          const ed = CFG_EDGES[p.edge];
+          const a = CFG_NODES[ed.from], b = CFG_NODES[ed.to];
+          const x1 = a.x * W, y1 = a.y * H, x2 = b.x * W, y2 = b.y * H;
+          const dx = x2 - x1, t = p.t;
+          const cx = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * (x1 + dx * 0.5) + t * t * x2;
+          const cy = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * ((y1 + y2) / 2) + t * t * y2;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = CFG_NODES[ed.to].color;
+          ctx.globalAlpha = 0.75;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        });
+
+        // 节点卡片
+        for (const key in CFG_NODES) {
+          const n = CFG_NODES[key];
+          const nx = n.x * W, ny = n.y * H;
+          const active = key === this.hovered;
+          const cardW = key === 'k_vol' ? 160 : null || 138;
+          const cardH = 30;
+          const rx = nx - cardW / 2, ry = ny - cardH / 2;
+
+          if (active) {
+            ctx.beginPath();
+            ctx.roundRect(rx - 3, ry - 3, cardW + 6, cardH + 6, 9);
+            ctx.fillStyle = 'rgba(184,154,106,.18)';
+            ctx.fill();
+          }
+          // 节点卡片: 边框始终节点色, 背景为节点色浅底(非激活), hover 白色+光晕
+          ctx.beginPath();
+          ctx.roundRect(rx, ry, cardW, cardH, 7);
+          ctx.fillStyle = active ? '#ffffff' : hexToRgba(n.color, 0.12);
+          ctx.strokeStyle = n.color;
+          ctx.lineWidth = active ? 1.8 : 1.2;
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.roundRect(rx + 5, ry + 5, 4, cardH - 10, 2);
+          ctx.fillStyle = n.color;
+          ctx.fill();
+
+          ctx.font = active ? '600 11px "DM Mono", monospace' : '400 11px "DM Mono", monospace';
+          ctx.fillStyle = active ? '#2c2824' : '#4a4540';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(n.name, rx + 14, ry + cardH / 2 + 0.5);
+        }
+        requestAnimationFrame(() => this.render());
+      }
+    }
+
+    // Initialization Event Listener
+    window.addEventListener('DOMContentLoaded', () => {
+      resizeCanvas();
+      initParticles();
+      updateStepUI(0);
+      render();
+      initScrollReveal();
+      new ConfigFlowEngine('cfg-canvas', 'cfg-wrapper');   // 配置依赖动态引擎
+
+      // Bind Button Handlers
+      document.getElementById('btn-prev').addEventListener('click', () => { pauseAutoPlay(); prevStep(); });
+      document.getElementById('btn-next').addEventListener('click', () => { pauseAutoPlay(); nextStep(); });
+      document.getElementById('btn-play').addEventListener('click', toggleAutoPlay);
+
+      // Handle Resize Window
+      window.addEventListener('resize', () => {
+        resizeCanvas();
+      });
+    });
+  </script>
+</body>
+</html>

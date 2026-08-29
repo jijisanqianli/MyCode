@@ -30,11 +30,13 @@ public:
                const char* clientId, const char* username, const char* password);
 
     void begin();               // 一次性配置: TLS + 服务器地址 + 回调
+    void setConfig(const char* broker, uint16_t port,
+                   const char* username, const char* password);   // 运行期更新连接配置(配置服务用)
     bool connect();             // 连接 Broker, 返回是否成功
     void loop();                // 保活 + 处理收到的消息(放主循环高频调用)
     bool isConnected();   // 是否在线
 
-    bool publish(const char* topic, const char* payload);   // 发布消息
+    bool publish(const char* topic, const char* payload, bool retained = false);   // 发布消息(retained=保留消息)
     bool subscribe(const char* topic);                       // 订阅主题
 
     void setCallback(MqttCallback cb);   // 注册业务回调(由 Service 调用)

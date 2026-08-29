@@ -56,9 +56,9 @@ typedef struct {
 // 当前控制模式: controlTask 写, mqttTask/Web 读(单字节原子读写, volatile 足够)
 extern volatile int8_t controlMode;
 
-// 自动灌溉阈值(双阈值防抖): 土壤湿度 < DRY 开泵, > WET 关泵(可调)
-#define AUTO_IRR_DRY_THRESHOLD   30   // 低于 30% 视为干燥, 开启灌溉
-#define AUTO_IRR_WET_THRESHOLD   60   // 高于 60% 视为湿润, 停止灌溉
+// 自动灌溉阈值(运行期变量, 默认值在 main.cpp 定义, ConfigService 可覆盖)
+extern volatile int autoIrrDryThreshold;   // 土壤湿度低于此值开泵
+extern volatile int autoIrrWetThreshold;   // 土壤湿度高于此值关泵
 
 // ---------- 队列句柄(由 main.cpp 创建, 各任务 extern 使用) ----------
 // 状态型队列(OLED/MQTT/自动灌溉): 容量1 + xQueueOverwrite, 始终保留最新一次采样

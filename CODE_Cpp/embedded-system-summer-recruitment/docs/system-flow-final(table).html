@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能灌溉系统 · 真实架构依赖与数据流</title>
+  <style>
+    :root {
+      --bg-cream: #faf8f4;
+      --card-white: #ffffff;
+      --border-gray: #e8e2d8;
+      --text-main: #2c2824;
+      --text-muted: #6b6560;
+      --text-light: #a09890;
+      --accent-gold: #b89a6a;
+      --accent-green: #4a7c59;
+      --accent-blue: #4a6b82;
+      --accent-red: #c86b51;
+      --accent-purple: #7e6388;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-cream);
+      background-image: radial-gradient(#e0d8ca 0.8px, transparent 0.8px);
+      background-size: 28px 28px;
+      color: var(--text-main);
+      font-family: 'Noto Serif SC', Georgia, 'KaiTi', serif;
+      min-height: 100vh;
+      padding: 28px 16px 60px;
+    }
+    .wrap { max-width: 1020px; margin: 0 auto; }
+    .mono { font-family: 'DM Mono', Consolas, monospace; }
+
+    header { text-align: center; margin-bottom: 28px; }
+    .badges { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .badge {
+      font-family: 'DM Mono', monospace; font-size: 11px;
+      padding: 5px 14px; border-radius: 999px;
+      background: rgba(184,154,106,.14); color: var(--accent-gold);
+      border: 1px solid rgba(184,154,106,.3);
+    }
+    .badge.blue { background: rgba(74,107,130,.12); color: var(--accent-blue); border-color: rgba(74,107,130,.3); }
+    .badge.green { background: rgba(74,124,89,.12); color: var(--accent-green); border-color: rgba(74,124,89,.3); }
+    .badge.red { background: rgba(200,107,81,.10); color: var(--accent-red); border-color: rgba(200,107,81,.3); }
+    h1 { font-size: 32px; font-weight: 700; letter-spacing: 1px; }
+    .subtitle { margin-top: 8px; color: var(--text-muted); font-size: 14px; letter-spacing: 2px; }
+
+    .section-title { display: flex; align-items: center; gap: 12px; margin: 36px 0 14px; }
+    .section-title .dot { width: 10px; height: 10px; border-radius: 999px; }
+    .section-title h2 { font-size: 19px; font-weight: 700; }
+    .section-title .en { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-light); letter-spacing: 1px; }
+    .section-title::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border-gray), transparent); }
+
+    .card {
+      background: var(--card-white); border: 1px solid var(--border-gray);
+      border-radius: 16px; padding: 20px 24px; margin-bottom: 14px;
+      box-shadow: 0 10px 30px -5px rgba(44,40,36,.04), 0 4px 12px -2px rgba(44,40,36,.03);
+    }
+
+    .cls {
+      font-family: 'DM Mono', monospace; font-size: 12px;
+      padding: 5px 12px; border-radius: 8px; border: 1px solid; white-space: nowrap;
+    }
+    .cls.task    { background: #2c2824; color: #f5f2ec; border-color: #2c2824; }
+    .cls.ctrl    { background: rgba(126,99,136,.08);  color: var(--accent-purple); border-color: rgba(126,99,136,.35); }
+    .cls.service { background: rgba(74,107,130,.08);  color: var(--accent-blue);   border-color: rgba(74,107,130,.35); }
+    .cls.driver  { background: rgba(184,154,106,.10); color: #9c7a44;              border-color: rgba(184,154,106,.4); }
+    .cls.queue   { background: rgba(74,124,89,.10);   color: var(--accent-green);  border-color: rgba(74,124,89,.4); }
+    .cls.hw      { background: #f1ede4; color: var(--text-muted); border-color: var(--border-gray); }
+    .cls.cloud   { background: rgba(200,107,81,.08);  color: var(--accent-red);    border-color: rgba(200,107,81,.35); }
+    .cls.new     { outline: 2px dashed var(--accent-gold); outline-offset: -2px; }
+
+    .arrow { color: var(--text-light); font-size: 15px; padding: 0 3px; white-space: nowrap; }
+    .arrow.hot { color: var(--accent-gold); font-weight: bold; }
+
+    /* 依赖关系 */
+    .layers { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .layer-row {
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      padding: 12px 16px; border-radius: 12px; border: 1px solid var(--border-gray);
+    }
+    .l-ctrl    { background: #f0e9f7; }
+    .l-service { background: #e9effa; }
+    .l-driver  { background: #f7ead9; }
+    .layer-name { font-size: 14px; font-weight: bold; min-width: 110px; }
+    .l-ctrl .layer-name { color: var(--accent-purple); }
+    .l-service .layer-name { color: var(--accent-blue); }
+    .l-driver .layer-name { color: #9c7a44; }
+    .depend { text-align: center; color: var(--accent-gold); font-size: 13px; letter-spacing: 3px; padding: 2px 0; }
+
+    .task-deps { display: flex; flex-direction: column; gap: 10px; }
+    .td-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .td-note { font-size: 11px; color: var(--text-light); font-family: 'DM Mono', monospace; margin-left: 6px; }
+
+    /* 流程 */
+    .flow-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 7px 0; }
+    .flow-label {
+      font-size: 12px; font-weight: bold; color: var(--text-muted);
+      min-width: 84px; font-family: 'DM Mono', monospace;
+    }
+    .branch { margin: 8px 0 8px 20px; padding-left: 14px; border-left: 2px solid var(--border-gray); }
+
+    .legend {
+      display: flex; justify-content: center; gap: 22px; flex-wrap: wrap;
+      margin-top: 28px; padding: 14px; font-size: 12.5px; color: var(--text-muted);
+    }
+    .legend .item { display: flex; align-items: center; gap: 7px; }
+    footer { text-align: center; margin-top: 24px; color: var(--text-light); font-size: 12px; letter-spacing: 1px; font-family: 'DM Mono', monospace; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="badges">
+      <span class="badge">真实架构 · 阶段 A~D 后</span>
+      <span class="badge blue">依赖</span>
+      <span class="badge green">数据流</span>
+      <span class="badge red">指令流 / OTA</span>
+    </div>
+    <h1>智能灌溉系统 · 真实依赖与信息流</h1>
+    <p class="subtitle">虚线边框 = 阶段 A~D 新增模块 · 与代码实现一一对应</p>
+  </header>
+
+  <!-- ════ 1. 依赖关系 ════ -->
+  <div class="section-title">
+    <span class="dot" style="background:var(--accent-gold)"></span>
+    <h2>一、依赖关系（谁依赖谁）</h2>
+    <span class="en">DEPENDENCY GRAPH</span>
+  </div>
+
+  <div class="card">
+    <div class="layers">
+      <div class="layer-row l-ctrl">
+        <span class="layer-name">Controller 层</span>
+        <span class="cls ctrl">WebServerController</span>
+        <span class="td-note">依赖 Sensor/Config/History/Irrigation 四服务</span>
+      </div>
+      <div class="depend">▼ 依赖（调用）</div>
+      <div class="layer-row l-service">
+        <span class="layer-name">Service 层</span>
+        <span class="cls service">SensorService</span>
+        <span class="cls service">MqttService</span>
+        <span class="cls service">IrrigationService</span>
+        <span class="cls service new">ConfigService</span>
+        <span class="cls service new">HistoryService</span>
+      </div>
+      <div class="depend">▼ 依赖（调用）</div>
+      <div class="layer-row l-driver">
+        <span class="layer-name">Driver 层</span>
+        <span class="cls driver">EnvSensorDriver</span>
+        <span class="cls driver">SoilSensorDriver</span>
+        <span class="cls driver">MqttDriver</span>
+        <span class="cls driver">OledDisplayDriver</span>
+        <span class="cls driver">IrrigationDriver</span>
+      </div>
+    </div>
+
+    <div class="task-deps">
+      <div class="td-row">
+        <span class="cls task">sensorTask</span><span class="arrow">→</span>
+        <span class="cls service">SensorService</span><span class="arrow">→</span>
+        <span class="cls driver">EnvSensorDriver</span><span class="arrow">+</span><span class="cls driver">SoilSensorDriver</span>
+        <span class="td-note">(updateAndGet 打包, 内部记录 HistoryService)</span>
+      </div>
+      <div class="td-row">
+        <span class="cls task">mqttTask</span><span class="arrow">→</span>
+        <span class="cls service">MqttService</span><span class="arrow">→</span><span class="cls driver">MqttDriver</span>
+        <span class="td-note">(上报时读 IrrigationService 通道状态)</span>
+      </div>
+      <div class="td-row">
+        <span class="cls task">controlTask</span><span class="arrow">→</span>
+        <span class="cls service">IrrigationService</span><span class="arrow">→</span><span class="cls driver">IrrigationDriver</span>
+      </div>
+      <div class="td-row">
+        <span class="cls task">oledTask</span><span class="arrow">→</span><span class="cls driver">OledDisplayDriver</span>
+      </div>
+      <div class="td-row">
+        <span class="cls task">loopTask(Web)</span><span class="arrow">→</span>
+        <span class="cls ctrl">WebServerController</span><span class="arrow">→</span>
+        <span class="cls service">SensorService</span><span class="arrow">+</span><span class="cls service">IrrigationService</span>
+        <span class="arrow">+</span><span class="cls service new">ConfigService</span><span class="arrow">+</span><span class="cls service new">HistoryService</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ 2. 数据包流向 ════ -->
+  <div class="section-title">
+    <span class="dot" style="background:var(--accent-blue)"></span>
+    <h2>二、数据包流向（传感器数据上行 + 历史）</h2>
+    <span class="en">DATA FLOW · UPSTREAM</span>
+  </div>
+
+  <div class="card">
+    <div class="flow-row">
+      <span class="flow-label">采集</span>
+      <span class="cls hw">DHT22</span><span class="arrow">+</span><span class="cls hw">HW-390</span>
+      <span class="arrow hot">→</span>
+      <span class="cls driver">Env/SoilDriver</span><span class="arrow hot">→</span>
+      <span class="cls service">SensorService</span>
+      <span class="td-note">(updateAndGet: 短临界区打包 + 写 HistoryService)</span>
+      <span class="arrow hot">→</span>
+      <span class="cls task">sensorTask</span>
+      <span class="td-note">(每 2s)</span>
+    </div>
+
+    <div class="branch">
+      <div class="flow-row">
+        <span class="flow-label">→ OLED</span>
+        <span class="cls queue">oledQueue</span><span class="arrow">→</span>
+        <span class="cls task">oledTask</span><span class="arrow">→</span><span class="cls driver">OledDisplayDriver</span>
+        <span class="arrow">→</span><span class="cls hw">OLED 屏</span>
+      </div>
+      <div class="flow-row">
+        <span class="flow-label">→ MQTT</span>
+        <span class="cls queue">latestDataQueue</span><span class="arrow">→</span>
+        <span class="cls task">mqttTask</span><span class="arrow">→</span><span class="cls service">MqttService</span>
+        <span class="arrow">→</span><span class="cls driver">MqttDriver</span>
+        <span class="arrow hot">→</span><span class="cls cloud">EMQX Broker</span>
+        <span class="arrow">→</span><span class="cls hw">MQTTX/网页</span>
+        <span class="td-note">(JSON 含 mode + channels 状态)</span>
+      </div>
+      <div class="flow-row">
+        <span class="flow-label">→ 历史</span>
+        <span class="cls service new">HistoryService</span>
+        <span class="arrow">→</span><span class="cls ctrl">WebServerController</span>
+        <span class="arrow">→</span><span class="cls hw">网页 Chart.js 曲线</span>
+        <span class="td-note">(GET /api/history, 2s 采样, 2000 条)</span>
+      </div>
+      <div class="flow-row">
+        <span class="flow-label">→ 自动灌溉</span>
+        <span class="cls queue">autoIrrQueue</span><span class="arrow">→</span>
+        <span class="cls task">controlTask</span>
+        <span class="td-note">(AUTO 模式 + 阈值判断在 sensorTask, 状态变化才发)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ 3. 指令流向 ════ -->
+  <div class="section-title">
+    <span class="dot" style="background:var(--accent-red)"></span>
+    <h2>三、指令流向（控制下行 + 模式状态机）</h2>
+    <span class="en">COMMAND FLOW · DOWNSTREAM</span>
+  </div>
+
+  <div class="card">
+    <div class="flow-row">
+      <span class="flow-label">MQTT 指令</span>
+      <span class="cls hw">MQTTX/网页</span><span class="arrow">→</span>
+      <span class="cls cloud">EMQX Broker</span><span class="arrow hot">→</span>
+      <span class="cls driver">MqttDriver</span><span class="arrow">→</span>
+      <span class="cls service">MqttService</span>
+      <span class="td-note">(解析 pump/mode; 连接后清除 retain 防重放)</span>
+    </div>
+    <div class="flow-row">
+      <span class="flow-label">HTTP 指令</span>
+      <span class="cls hw">网页按钮</span><span class="arrow">→</span>
+      <span class="cls ctrl">WebServerController</span>
+      <span class="td-note">(on/off/mode 均发 manualIrrQueue, 控制收敛)</span>
+    </div>
+    <div class="branch">
+      <div class="flow-row">
+        <span class="flow-label">汇聚</span>
+        <span class="cls queue">manualIrrQueue</span>
+        <span class="arrow hot">→</span>
+        <span class="cls task">controlTask</span>
+        <span class="td-note">(唯一执行者; pump 指令自动切 MANUAL)</span>
+      </div>
+      <div class="flow-row">
+        <span class="flow-label">执行</span>
+        <span class="cls service">IrrigationService</span><span class="arrow">→</span>
+        <span class="cls driver">IrrigationDriver</span>
+        <span class="arrow hot">→</span><span class="cls hw">LED / 水泵</span>
+      </div>
+      <div class="flow-row">
+        <span class="flow-label">状态回传</span>
+        <span class="cls service">MqttService</span><span class="arrow">→</span>
+        <span class="cls cloud">channels 字段</span>
+        <span class="arrow">→</span><span class="cls hw">页面状态实时刷新</span>
+        <span class="td-note">(HTTP 2s 轮询 + MQTT 推送)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ 4. 配置与 OTA ════ -->
+  <div class="section-title">
+    <span class="dot" style="background:var(--accent-green)"></span>
+    <h2>四、配置持久化 与 OTA 更新</h2>
+    <span class="en">CONFIG & OTA</span>
+  </div>
+
+  <div class="card">
+    <div class="flow-row">
+      <span class="flow-label">配置</span>
+      <span class="cls hw">LittleFS /config.json</span><span class="arrow hot">→</span>
+      <span class="cls service new">ConfigService</span><span class="arrow">→</span>
+      <span class="cls task">启动应用</span>
+      <span class="td-note">(WiFi/MQTT/阈值/默认模式; GET/POST /api/config)</span>
+    </div>
+    <div class="flow-row">
+      <span class="flow-label">OTA</span>
+      <span class="cls hw">浏览器上传 .bin</span><span class="arrow hot">→</span>
+      <span class="cls ctrl">WebServerController /update</span><span class="arrow">→</span>
+      <span class="cls driver">Update 库</span><span class="arrow">→</span>
+      <span class="cls hw">备用 app 分区</span><span class="arrow">→</span>
+      <span class="cls hw">重启切换</span>
+      <span class="td-note">(A/B 双分区, 失败自动回滚; 密钥 ?key=)</span>
+    </div>
+  </div>
+
+  <div class="card legend">
+    <div class="item"><span class="cls task" style="padding:2px 8px">任务</span> 任务</div>
+    <div class="item"><span class="cls ctrl" style="padding:2px 8px">Ctrl</span> Controller</div>
+    <div class="item"><span class="cls service" style="padding:2px 8px">Svc</span> Service</div>
+    <div class="item"><span class="cls driver" style="padding:2px 8px">Drv</span> Driver</div>
+    <div class="item"><span class="cls queue" style="padding:2px 8px">Q</span> 队列</div>
+    <div class="item"><span class="cls service new" style="padding:2px 8px">新</span> 阶段 A~D 新增</div>
+    <div class="item"><span class="cls cloud" style="padding:2px 8px">☁</span> 云端</div>
+  </div>
+
+  <footer>真实架构 · 阶段 A(状态修复) B(配置持久化) C(OTA) D(历史曲线) —— 与代码一一对应</footer>
+</div>
+</body>
+</html>

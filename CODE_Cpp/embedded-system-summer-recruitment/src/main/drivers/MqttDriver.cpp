@@ -16,6 +16,16 @@ MqttDriver::MqttDriver(const char* broker, uint16_t port,
       broker(broker), port(port),
       clientId(clientId), username(username), password(password) {}
 
+void MqttDriver::setConfig(const char* broker, uint16_t port,
+                           const char* username, const char* password) {
+    this->broker   = broker;
+    this->port     = port;
+    this->username = username;
+    this->password = password;
+    // 配置变更后需重新指定服务器(下次 connect 生效)
+    mqttClient.setServer(this->broker.c_str(), this->port);
+}
+
 void MqttDriver::begin() {
     // ① TLS: 跳过证书校验(免去下载证书嵌入)。
     //    正规做法: 下载 EMQX Cloud 的 CA 证书, 换成 wifiClient.setCACert(caCert);
@@ -45,8 +55,8 @@ bool MqttDriver::isConnected() {
     return mqttClient.connected();
 }
 
-bool MqttDriver::publish(const char* topic, const char* payload) {
-    return mqttClient.publish(topic, payload);
+bool MqttDriver::publish(const char* topic, const char* payload, bool retained) {
+    return mqttClient.publish(topic, payload, retained);
 }
 
 bool MqttDriver::subscribe(const char* topic) {

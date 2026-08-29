@@ -8,6 +8,9 @@
 
     <title>ESP32 智能灌溉</title>
 
+    <!-- 历史曲线图库 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
 
     <style>
 
@@ -361,6 +364,50 @@
 
 
 
+        /* 历史曲线卡片 */
+        .chart-box{
+
+            margin-top:25px;
+            padding:16px;
+            background:#f0fdf4;
+            border:1px solid #bbf7d0;
+            border-radius:12px;
+            text-align:left;
+
+        }
+
+
+
+        .chart-box h3{
+
+            margin:0 0 10px;
+            font-size:16px;
+            color:#166534;
+
+        }
+
+
+
+        /* 固定高度容器: 防止 Chart.js responsive 模式下
+           canvas 与容器互相撑开导致高度无限膨胀 */
+        .chart-wrap{
+
+            position:relative;
+            height:300px;
+
+        }
+
+
+
+        #historyChart{
+
+            width:100% !important;
+            height:100% !important;
+
+        }
+
+
+
         .info{
 
             margin-top:15px;
@@ -418,6 +465,13 @@
 
     <!-- 通道列表由 JS 按 /irrigation/channels 返回的数据动态生成 -->
     <div id="channels"></div>
+
+
+    <!-- 历史数据曲线: Chart.js 绘制 /api/history -->
+    <div class="chart-box">
+        <h3>📈 历史数据(2s 采样 · 最近约 1 小时)</h3>
+        <div class="chart-wrap"><canvas id="historyChart"></canvas></div>
+    </div>
 
 
     <div class="info">
@@ -660,6 +714,67 @@
 
     updateSensors();
     setInterval(updateSensors, 2000);
+
+    // 定时轮询灌溉状态(自动灌溉/云端指令改变状态也能及时反映)
+    setInterval(updateStatus, 2000);
+
+
+    // ===== 历史曲线: 拉取 /api/history 绘制温度/湿度/土壤 =====
+    let historyChart = null;
+
+    async function updateHistory(){
+
+        try{
+
+            let response = await fetch("/api/history?limit=300");
+
+            if(!response.ok)
+                return;
+
+            let data = await response.json();
+
+            if(data.length === 0)
+                return;
+
+            let labels = data.map(p => {
+                let d = new Date(p.ts);
+                return d.toLocaleTimeString();
+            });
+
+            if(historyChart)
+                historyChart.destroy();
+
+            historyChart = new Chart(document.getElementById("historyChart"), {
+                type: "line",
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: "温度 °C", data: data.map(p => p.t), borderColor: "#ef4444", backgroundColor: "rgba(239,68,68,.08)", tension: .3, pointRadius: 1 },
+                        { label: "湿度 %", data: data.map(p => p.h), borderColor: "#3b82f6", backgroundColor: "rgba(59,130,246,.08)", tension: .3, pointRadius: 1 },
+                        { label: "土壤 %", data: data.map(p => p.s), borderColor: "#22c55e", backgroundColor: "rgba(34,197,94,.08)", tension: .3, pointRadius: 1 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, max: 100 }
+                    },
+                    plugins: { legend: { position: "top" } }
+                }
+            });
+
+        }catch(e){
+
+            console.log("历史数据获取失败");
+
+        }
+
+    }
+
+    // 历史曲线每 10s 刷新
+    updateHistory();
+    setInterval(updateHistory, 10000);
 
 
 </script>

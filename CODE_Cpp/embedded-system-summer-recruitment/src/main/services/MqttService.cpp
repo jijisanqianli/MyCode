@@ -28,7 +28,10 @@ void MqttService::update() {
             lastConnectMs = now;
             if (mqttDriver.connect()) {
                 Serial.println("[MQTT] Broker connected");
-                mqttDriver.subscribe(topicCmd);   // 连接成功后订阅控制主题
+                mqttDriver.subscribe(topicCmd);
+                // 清除控制主题的历史保留消息: 防止 retain 的旧指令
+                // (如 {"pump":"on"}) 在重启/重连后重放, 导致启动即开泵+切手动
+                mqttDriver.publish(topicCmd, "", true);   // 空 payload + retain = 清除
             } else {
                 Serial.println("[MQTT] connect FAIL, retry later");
             }
@@ -47,11 +50,21 @@ bool MqttService::isConnected() {
 
 // 由 mqttTask 调用: 用最新一次采样的完整结构体拼 JSON(保证一致性), 含 mode 字段
 void MqttService::publishData(const SensorData_t& data) {
+    // 各通道实时状态(真实状态, 供页面/云端展示)
+    String channels = "[";
+    for (size_t i = 0; i < irrigationService.getChannelCount(); ++i) {
+        if (i > 0) channels += ",";
+        channels += "{\"index\":" + String(i)
+                  + ",\"status\":" + (irrigationService.isIrrigating(i) ? "true" : "false") + "}";
+    }
+    channels += "]";
+
     String payload = String("{\"device\":\"") + deviceId + "\""
         + ",\"temperature\":" + String(data.temperature, 1)
         + ",\"humidity\":" + String(data.humidity, 1)
         + ",\"soil\":" + String(data.soilPercent)
-        + ",\"mode\":\"" + (controlMode == MODE_MANUAL ? "manual" : "auto") + "\"}";
+        + ",\"mode\":\"" + (controlMode == MODE_MANUAL ? "manual" : "auto")
+        + "\",\"channels\":" + channels + "}";
 
     bool ok = mqttDriver.publish(topicData, payload.c_str());
     Serial.printf("[MQTT] publish %s -> %s\n", topicData, ok ? "OK" : "FAIL");

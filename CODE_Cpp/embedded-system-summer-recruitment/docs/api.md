@@ -199,6 +199,49 @@
 
 页面 `data/irrigation.html` 每 2s 轮询该接口刷新顶部传感器卡片（温度/湿度/土壤/模式）。
 
+### 4.2 配置管理接口
+
+读取/更新持久化配置（WiFi / MQTT / 灌溉阈值 / 默认模式），配置保存于 LittleFS 的 `/config.json`。
+
+#### 4.2.1 读取配置
+
+- **请求路径**：`/api/config`
+- **HTTP 方法**：`GET`
+- **请求参数**：无
+- **响应格式**：`application/json`
+
+```json
+{"wifiSsid":"SDK","wifiPassword":"13730708827","mqttBroker":"i3daab3b.ala.cn-shenzhen.emqxsl.cn","mqttPort":8883,"mqttUsername":"esp32-s3","mqttPassword":"123654789","dryThreshold":30,"wetThreshold":60,"defaultMode":"auto"}
+```
+
+#### 4.2.2 更新配置
+
+- **请求路径**：`/api/config`
+- **HTTP 方法**：`POST`
+- **请求体**：JSON（**只更新消息中存在的字段**，缺省字段保持原值）
+
+示例（只改灌溉阈值）：
+
+```json
+{"dryThreshold":20,"wetThreshold":50}
+```
+
+#### 响应说明
+
+| **状态码** | **类型** | **说明** |
+| ---------- | -------- | -------- |
+| `200 OK` | `text/plain` | `config saved, reboot to apply` |
+| `400 Bad Request` | `text/plain` | 请求体为空 / 解析或保存失败 |
+
+#### 字段说明
+
+| **字段** | **类型** | **说明** |
+| -------- | -------- | -------- |
+| `wifiSsid` / `wifiPassword` | `string` | WiFi 连接凭证（变更需重启生效） |
+| `mqttBroker` / `mqttPort` / `mqttUsername` / `mqttPassword` | `string`/`number` | MQTT Broker 连接配置（变更需重启生效） |
+| `dryThreshold` / `wetThreshold` | `number` | 自动灌溉双阈值（土壤湿度低于 dry 开泵，高于 wet 关泵，下次启动生效） |
+| `defaultMode` | `string` | 开机默认模式：`auto` / `manual`（下次启动生效） |
+
 ## 5. MQTT 接口（云端通道）
 
 ESP32 通过 MQTT 连接 EMQX Cloud Serverless Broker，实现**数据上报**与**指令下发**（与 HTTP 并行，控制权统一收敛到 `controlTask`）。

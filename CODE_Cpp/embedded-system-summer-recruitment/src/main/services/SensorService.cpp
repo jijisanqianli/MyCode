@@ -3,8 +3,9 @@
 
 SensorService::SensorService(uint8_t dhtPin, uint8_t soilPin,
                              int soilDry, int soilWet,
-                             OledDisplayDriver* display)
-    : env(dhtPin), soil(soilPin, soilDry, soilWet), display(display) {}
+                             OledDisplayDriver* display, HistoryService* history)
+    : env(dhtPin), soil(soilPin, soilDry, soilWet),
+      display(display), history(history) {}
 
 void SensorService::begin() {
     env.begin();
@@ -60,7 +61,11 @@ SensorData_t SensorService::getData() const {
 // 采样 + 打包一步完成(由 sensorTask 调用)
 SensorData_t SensorService::updateAndGet() {
     update();               // 采样(内部 2s 节流)
-    return getData();       // 打包返回
+    SensorData_t data = getData();   // 打包返回
+    if (history != nullptr) {
+        history->add(data);          // 记录历史(内部 30s 降频)
+    }
+    return data;
 }
 
 String SensorService::getSensorsJson() const {
