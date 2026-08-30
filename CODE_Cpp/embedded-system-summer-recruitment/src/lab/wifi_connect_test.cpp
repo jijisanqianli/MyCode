@@ -1,8 +1,8 @@
 #include <WiFi.h>
 
 // 请替换为你的 Wi-Fi 网络信息
-const char *ssid = "SDK";
-const char *password = "13730708827";
+const char *ssid = "iQOO Neo9S Pro";//"SDK";
+const char *password = "123654789";//"13730708827";
 
 void setup() {
     Serial.begin(115200);

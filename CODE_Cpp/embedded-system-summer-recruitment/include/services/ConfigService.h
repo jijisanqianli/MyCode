@@ -14,8 +14,8 @@ class ConfigService {
 
 public:
     // 当前配置(默认值 = 编译期硬编码, 可被 /config.json 覆盖)
-    String   wifiSsid       = "SDK";
-    String   wifiPassword   = "13730708827";
+    String   wifiSsid       = "iQOO Neo9S Pro";//"SDK";
+    String   wifiPassword   = "123654789";//"13730708827";
     String   mqttBroker     = "i3daab3b.ala.cn-shenzhen.emqxsl.cn";
     uint16_t mqttPort       = 8883;
     String   mqttUsername   = "esp32-s3";
